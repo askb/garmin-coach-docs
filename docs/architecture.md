@@ -1,4 +1,4 @@
-# Architecture & Tech Stack — GarminCoach v2.0
+# Architecture & Tech Stack — GarminCoach v2.1
 
 ## 1. High-Level Architecture
 
@@ -7,8 +7,8 @@
 │                           CLIENTS                                    │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │ Next.js 16 Web App (Tailwind + Recharts)                     │  │
-│  │ 5 tabs: Today · Trends · Training · Sleep · Settings         │  │
-│  │ + Onboarding · Workout Detail                                │  │
+│  │ 6 tabs: Today · Trends · Training · Zones · Sleep · Settings │  │
+│  │ + Onboarding · Workout Detail · AI Coach                     │  │
 │  └──────────────────────────┬────────────────────────────────────┘  │
 │                             │                                       │
 │  ┌──────────────────────────┴────────────────────────────────────┐  │
@@ -18,22 +18,26 @@
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    tRPC v11 API LAYER (32+ endpoints)                │
+│                    tRPC v11 API LAYER (39+ endpoints)                │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │                    Next.js API Routes                          │ │
 │  │                    (tRPC Router — appRouter)                   │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 │                                                                      │
-│  10 Routers:                                                         │
+│  14 Routers:                                                         │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│  │analytics │ │  auth    │ │  garmin  │ │ journal  │ │   post   │ │
-│  │  (7)     │ │  (2)    │ │  (4)    │ │  (4)    │ │   (4)   │ │
+│  │analytics │ │  auth    │ │   chat   │ │  garmin  │ │ journal  │ │
+│  │  (7)     │ │  (2)    │ │  (2)    │ │  (4)    │ │  (4)    │ │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│  │ profile  │ │readiness │ │  sleep   │ │ workout  │ │  trends  │ │
-│  │  (4)     │ │  (4)    │ │  (3)    │ │  (4)    │ │   (6)   │ │
+│  │   post   │ │ profile  │ │readiness │ │  sleep   │ │  trends  │ │
+│  │  (4)     │ │  (4)    │ │  (4)    │ │  (3)    │ │   (6)   │ │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
+│  ┌──────────┐ ┌──────────┐                                         │
+│  │ workout  │ │  zones   │                                         │
+│  │  (4)     │ │  (7)    │                                         │
+│  └──────────┘ └──────────┘                                         │
 └──────┬──────────────┬──────────────┬──────────────┬─────────────────┘
        │              │              │              │
        ▼              ▼              ▼              ▼
@@ -53,11 +57,11 @@
        ▼              ▼              ▼                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         DATA LAYER                                   │
-│  ┌──────────────────┐  ┌──────────────────┐                         │
-│  │ PostgreSQL 16    │  │ Redis 7          │                         │
-│  │ (Drizzle ORM)    │  │ (Cache / Queue)  │                         │
-│  │ 13 tables        │  │                  │                         │
-│  └──────────────────┘  └──────────────────┘                         │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │ PostgreSQL 16    │  │ Redis 7          │  │ Ollama           │  │
+│  │ (Drizzle ORM)    │  │ (Cache / Queue)  │  │ (Local AI / LLM) │  │
+│  │ 13 tables        │  │                  │  │ gpt-oss:20b      │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -84,6 +88,7 @@
 |-----------|-----------|---------|
 | **Database** | PostgreSQL 16 | Primary data store (13 tables) |
 | **Cache** | Redis 7 | Caching, rate limiting |
+| **AI Inference** | Ollama (local) | LLM for specialist coaching agents (gpt-oss:20b) |
 | **Containers** | Docker Compose | Local dev (Postgres + Redis) |
 | **CI/CD** | GitHub Actions | Lint + typecheck + test + build |
 | **Runtime** | Node.js 22+ | Server runtime |
@@ -104,18 +109,24 @@ garmin-coach/
 │       │   │   ├── page.tsx     # Today / Home
 │       │   │   ├── trends/      # Advanced Trends
 │       │   │   ├── training/    # Training Load
+│       │   │   ├── zones/       # Zone Analytics Dashboard (NEW)
 │       │   │   ├── sleep/       # Sleep Dashboard
 │       │   │   ├── settings/    # Settings
 │       │   │   └── workout/     # Workout Detail
 │       │   └── onboarding/      # 3-step setup flow
 │       └── e2e/                 # Playwright E2E tests (20 tests)
 ├── packages/
-│   ├── api/                     # tRPC routers (10 routers, 32+ endpoints)
+│   ├── api/                     # tRPC routers (14 routers, 39+ endpoints)
 │   │   └── src/
 │   │       ├── root.ts          # appRouter definition
+│   │       ├── lib/
+│   │       │   ├── ollama.ts    # Ollama HTTP client (AI inference)
+│   │       │   ├── agent-prompts.ts # 4 specialist agent system prompts
+│   │       │   └── data-context.ts  # Real-time data context builder
 │   │       └── router/
 │   │           ├── analytics.ts # 7 endpoints
 │   │           ├── auth.ts      # 2 endpoints
+│   │           ├── chat.ts      # 2 endpoints (AI specialist agents)
 │   │           ├── garmin.ts    # 4 endpoints
 │   │           ├── journal.ts   # 4 endpoints
 │   │           ├── post.ts      # 4 endpoints
@@ -123,7 +134,8 @@ garmin-coach/
 │   │           ├── readiness.ts # 4 endpoints
 │   │           ├── sleep.ts     # 3 endpoints
 │   │           ├── workout.ts   # 4 endpoints
-│   │           └── trends.ts    # 6 endpoints
+│   │           ├── trends.ts    # 6 endpoints
+│   │           └── zones.ts     # 7 endpoints (zone analytics)
 │   ├── auth/                    # Better-Auth configuration
 │   ├── db/                      # Drizzle schema + client (13 tables)
 │   │   └── src/
@@ -193,6 +205,7 @@ packages/engine/src/
 export const appRouter = createTRPCRouter({
   analytics: analyticsRouter,   // 7 endpoints
   auth:      authRouter,        // 2 endpoints
+  chat:      chatRouter,        // 2 endpoints (AI specialist agents)
   garmin:    garminRouter,      // 4 endpoints
   journal:   journalRouter,     // 4 endpoints
   post:      postRouter,        // 4 endpoints
@@ -201,6 +214,7 @@ export const appRouter = createTRPCRouter({
   sleep:     sleepRouter,       // 3 endpoints
   workout:   workoutRouter,     // 4 endpoints
   trends:    trendsRouter,      // 6 endpoints
+  zones:     zonesRouter,       // 7 endpoints (zone analytics)
 });
 ```
 
@@ -268,6 +282,19 @@ trends.getMultiMetric({ metrics, days })             // → { [metric]: DataPoin
 trends.getComparison({ period1, period2 })           // → { deltas, significance }
 trends.getCTLATLTSB({ days })                        // → { ctl[], atl[], tsb[] }
 trends.getACWR({ days })                             // → { values[], zone }
+
+// zones router (7) — NEW: Zone Analytics Dashboard
+zones.getWeeklyZoneDistribution({ weeks, sport? })   // → HR zone minutes grouped by ISO week
+zones.getPolarizationIndex({ weeks, sport? })          // → Seiler's polarization index (easy/mod/hard)
+zones.getZoneTrends({ months })                        // → Monthly zone % breakdown
+zones.getEfficiencyTrend({ days, sport? })             // → Pace/HR efficiency index per activity
+zones.getActivityCalendar({ year })                    // → Daily activity heatmap data
+zones.getVolumeByWeek({ weeks })                       // → Weekly minutes by sport type
+zones.getPeakPerformances({ months })                  // → Monthly bests for pace/distance/duration/HR
+
+// chat router (2) — NEW: AI Specialist Agents
+chat.sendMessage({ content, agent })                   // → AI response via Ollama (or fallback)
+chat.getHistory({ limit? })                            // → ChatMessage[]
 ```
 
 ---
@@ -299,6 +326,53 @@ trends.getACWR({ days })                             // → { values[], zone }
    d. Sleep: stages + debt + coach advice
 7. User trains → Garmin records → cycle repeats
 ```
+
+---
+
+## 5a. AI Specialist Agent Flow
+
+```
+Browser → tRPC chat.sendMessage({ content, agent })
+  │
+  ▼
+Data Context Builder (packages/api/src/lib/data-context.ts)
+  │  Gathers from PostgreSQL:
+  │  · Last 14 days of DailyMetric (sleep, HRV, RHR, stress, Body Battery)
+  │  · Recent activities (sport, duration, strain, zones)
+  │  · Current readiness score and zone
+  │  · Profile (age, mass, goals, experience)
+  │
+  ▼
+System Prompt Selection (packages/api/src/lib/agent-prompts.ts)
+  │  4 specialist personas:
+  │  · Sport Scientist — periodization, ACWR, VO2max, zone recommendations
+  │  · Sport Psychologist — motivation, mental resilience, consistency, race-day prep
+  │  · Nutritionist — fueling strategies, recovery nutrition, calorie/macro guidance
+  │  · Recovery Specialist — sleep optimization, deload protocols, injury risk, HRV
+  │
+  ▼
+Ollama HTTP API (packages/api/src/lib/ollama.ts)
+  │  POST http://localhost:11434/api/generate
+  │  Model: gpt-oss:20b
+  │  Fully local, zero cost, private
+  │
+  ▼
+Response → tRPC → Browser (markdown rendering, typing indicator)
+
+Fallback: If Ollama is unavailable, returns data-driven template responses
+built from the same real-time context data.
+```
+
+---
+
+## 5b. Docker Resource Limits
+
+| Service | Memory Limit | CPU Limit | Key Tuning |
+|---------|-------------|-----------|------------|
+| PostgreSQL | 2 GB | 2.0 cores | shared_buffers=256MB, effective_cache_size=1GB, work_mem=16MB, max_connections=50, slow query logging (>1s) |
+| Redis | 256 MB | 0.5 cores | maxmemory 128MB, allkeys-lru eviction |
+
+Both containers run with `restart: unless-stopped`.
 
 ---
 

@@ -1,7 +1,8 @@
-# Coaching Logic — GarminCoach v2.0
+# Coaching Logic — GarminCoach v2.1
 
 Deterministic, evidence-based coaching that adapts daily based on readiness,
-training status, recovery state, and sleep quality.
+training status, recovery state, and sleep quality. AI specialist agents provide
+personalized guidance via local Ollama inference.
 
 ---
 
@@ -301,3 +302,60 @@ if activity.subType in ['match', 'scrimmage', 'game']:
 - Offer escalation: "Consider consulting a coach or doctor if…"
 - Volume caps: never exceed +15% week-over-week
 - ACWR hard cap: force recovery when > 1.5
+
+---
+
+## 12. AI Specialist Agents
+
+### 12.1 Architecture
+
+Replaced the planned rules-based chat (Phase 15) with real AI using local Ollama
+inference. Zero cost, fully private, no external API dependencies.
+
+```
+Browser → tRPC chat.sendMessage({ content, agent })
+  → Data Context Builder → System Prompt Selection → Ollama HTTP API → Response
+```
+
+**Files:**
+- `packages/api/src/lib/ollama.ts` — Ollama HTTP client
+- `packages/api/src/lib/agent-prompts.ts` — 4 specialist system prompts
+- `packages/api/src/lib/data-context.ts` — Real-time data context builder
+
+### 12.2 Four Specialist Agents
+
+| Agent | System Prompt Focus |
+|-------|-------------------|
+| **Sport Scientist** | Periodization planning, ACWR analysis, VO2max optimization, HR zone recommendations, training load management |
+| **Sport Psychologist** | Motivation strategies, mental resilience, consistency pattern analysis, race-day mental preparation |
+| **Nutritionist** | Fueling strategies (pre/during/post workout), recovery nutrition, calorie and macro guidance based on training load |
+| **Recovery Specialist** | Sleep optimization, deload protocol design, injury risk assessment, HRV interpretation, active recovery programming |
+
+### 12.3 Data Context Builder
+
+Each request builds real-time context from PostgreSQL before sending to the LLM:
+
+| Data Source | Window | Content |
+|-------------|--------|---------|
+| DailyMetric | Last 14 days | Sleep, HRV, RHR, stress, Body Battery, steps |
+| Activity | Last 14 days | Sport type, duration, strain, HR zones, distance |
+| ReadinessScore | Today | Current score, zone, confidence, explanation |
+| Profile | Current | Age, mass, goals, experience level, max HR, resting HR |
+
+The context is formatted as structured text and injected into the system prompt
+alongside the specialist persona instructions.
+
+### 12.4 Fallback Behavior
+
+When Ollama is unavailable (service down, model not loaded):
+- Returns data-driven template responses built from the same real-time context
+- Templates use the gathered metrics to provide actionable, personalized advice
+- No degradation in data accuracy — only loses conversational flexibility
+
+### 12.5 Guardrails (Preserved)
+
+All sport science guardrails from Section 11 apply to AI agents:
+- Only references the user's own data
+- Never provides medical advice
+- Acknowledges uncertainty
+- Offers escalation to professionals

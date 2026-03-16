@@ -881,6 +881,75 @@ This model has been validated across multiple endurance sports (rowing, cycling,
 cross-country skiing, running) and consistently outperforms threshold-dominant
 training in controlled studies.
 
+### 11.4 Polarization Index (Quantifying Distribution)
+
+The polarization index (PI) quantifies how closely an athlete's training
+distribution follows the polarized model. Based on Shannon entropy applied
+to a 3-zone classification (easy / moderate / hard):
+
+**Formula:**
+
+```
+PI = ln(1 / Σ pᵢ²)
+
+where:
+  pᵢ = fraction of total training time in zone i
+  Zones: easy (Zone 1–2), moderate (Zone 3), hard (Zone 4–5)
+```
+
+**Interpretation:**
+
+| PI Value | Distribution | Interpretation |
+|----------|-------------|---------------|
+| > 2.0 | Highly polarized | Strong 80/20 split — ideal for most endurance athletes |
+| 1.5–2.0 | Moderately polarized | Good distribution with some moderate-zone drift |
+| 1.0–1.5 | Threshold-dominant | Too much Zone 3 — "black hole" training |
+| < 1.0 | Single-zone dominant | Monotonic training — limited adaptation |
+
+The ideal polarized distribution targets approximately:
+- **~80%** of sessions/volume at easy intensity (below VT1)
+- **~0–5%** at moderate intensity (VT1–VT2)
+- **~15–20%** at high intensity (above VT2)
+
+**Engine implementation:** The `zones.getPolarizationIndex()` endpoint calculates
+PI from `hr_zone_minutes` JSONB data on the Activity table, classifying Zone 1–2
+as easy, Zone 3 as moderate, and Zone 4–5 as hard.
+
+> **Citation:** Seiler KS, Kjerland GØ. Quantifying training intensity
+> distribution in elite endurance athletes: is there evidence for an "optimal"
+> distribution? *Scand J Med Sci Sports*. 2006;16(1):49–56.
+
+### 11.5 Aerobic Efficiency Index (Cardiac Drift)
+
+The aerobic efficiency index tracks cardiac cost of locomotion over time.
+An improving trend indicates enhanced running economy and/or aerobic adaptation.
+
+**Formula:**
+
+```
+Efficiency Index = speed(m/s) / avgHr × 1000
+```
+
+**Interpretation:**
+
+- Rising EI at constant HR → improved aerobic fitness
+- Declining EI → possible overtraining, dehydration, or cardiac drift
+- Useful for detecting aerobic adaptations that precede VO2max improvements
+
+The efficiency index is related to the concept of cardiac drift — the gradual
+increase in heart rate during prolonged exercise at constant workload — first
+described by Coyle & González-Alonso (2001).
+
+**Engine implementation:** The `zones.getEfficiencyTrend()` endpoint calculates
+EI for each running/cycling activity and plots the trend as a scatter chart.
+
+> **References:**
+>
+> Coyle EF, González-Alonso J. Cardiovascular drift during prolonged exercise:
+> new perspectives. *Exerc Sport Sci Rev*. 2001;29(2):88–92.
+>
+> Seiler KS, Kjerland GØ. *Scand J Med Sci Sports*. 2006;16(1):49–56.
+
 > **Citations:**
 >
 > Seiler KS, Kjerland GØ. Quantifying training intensity distribution in elite
@@ -1051,6 +1120,7 @@ recommendations and rates each as "agree," "partially agree," or "disagree."
 | Date       | Version | Author | Changes                                    |
 |------------|---------|--------|--------------------------------------------|
 | 2025-01-01 | 1.0.0   | —      | Initial release — full reference document  |
+| 2025-07-05 | 1.1.0   | —      | Added polarization index formula (§11.4), aerobic efficiency index (§11.5) |
 
 ---
 

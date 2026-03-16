@@ -1,4 +1,4 @@
-# UX Flows & Screens — GarminCoach v2.0
+# UX Flows & Screens — GarminCoach v2.1
 
 ## Screen Map
 
@@ -7,20 +7,23 @@
 /onboarding    → 3-step setup flow
 /trends        → Advanced Trends (multi-metric overlay, regression, correlations)
 /training      → Training Load (CTL/ATL/TSB, ACWR, load focus, status)
+/zones         → Zone Analytics (7-chart dashboard, polarization, efficiency)
 /sleep         → Sleep Dashboard (stages, score, debt, coach, timing)
 /settings      → Profile, Garmin connection, preferences
 /workout/[id]  → Workout Detail (structure, targets, explanation)
+/coach         → AI Coach (4 specialist agents, data-driven chat)
 ```
 
 ---
 
-## Navigation — 5-Tab Bottom Bar
+## Navigation — 6-Tab Bottom Bar
 
 | Tab | Icon | Route | Screen |
 |-----|------|-------|--------|
 | Today | 🏠 | `/` | Home — readiness + workout |
 | Trends | 📊 | `/trends` | Advanced Trends |
 | Training | 🏋️ | `/training` | Training Load |
+| Zones | 📈 | `/zones` | Zone Analytics |
 | Sleep | 🌙 | `/sleep` | Sleep Dashboard |
 | Settings | ⚙️ | `/settings` | Settings & Profile |
 
@@ -94,7 +97,7 @@ The primary daily touchpoint. Prefetches `readiness.getToday` and `workout.getTo
 │  RHR: 58 bpm    │  ACWR: 1.05  │
 │                                 │
 │  ─────────────────────────────  │
-│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
 └─────────────────────────────────┘
 ```
 
@@ -155,7 +158,7 @@ Multi-metric analytics dashboard with Recharts visualizations.
 │  └───────────────────────────┘  │
 │                                 │
 │  ─────────────────────────────  │
-│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
 └─────────────────────────────────┘
 ```
 
@@ -219,7 +222,7 @@ Fitness-fatigue model visualization with load management tools.
 │  └───────────────────────────┘  │
 │                                 │
 │  ─────────────────────────────  │
-│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
 └─────────────────────────────────┘
 ```
 
@@ -231,6 +234,135 @@ Fitness-fatigue model visualization with load management tools.
 - **Load focus:** Pie/donut chart of aerobic/anaerobic/mixed distribution
 - **Recovery panel:** Estimated recovery remaining, ramp rate warning
 - **Period toggle:** 28-day and 90-day views
+
+---
+
+## 4a. Zone Analytics Page (NEW)
+
+HR zone distribution dashboard with 7 chart sections and sport filtering.
+
+### Layout
+
+```
+┌─────────────────────────────────┐
+│  Zone Analytics     4W 8W 12W   │
+│                   [All Sports ▼] │
+│                                 │
+│  WEEKLY ZONE DISTRIBUTION       │
+│  ┌───────────────────────────┐  │
+│  │ [Stacked bar chart]       │  │
+│  │ Zone 1–5 minutes/week    │  │
+│  │ Each bar = 1 ISO week     │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  POLARIZATION INDEX             │
+│  ┌───────────────────────────┐  │
+│  │ [Composed line chart]     │  │
+│  │ PI = 1.87 (Polarized ✓)  │  │
+│  │ Easy: 78% | Mod: 5% |    │  │
+│  │ Hard: 17%                 │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ZONE TRENDS (Monthly)          │
+│  ┌───────────────────────────┐  │
+│  │ [100% stacked area chart] │  │
+│  │ Zone % breakdown by month │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  EFFICIENCY TREND               │
+│  ┌───────────────────────────┐  │
+│  │ [Scatter chart]            │  │
+│  │ Pace/HR efficiency index  │  │
+│  │ per activity over time     │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ACTIVITY CALENDAR              │
+│  ┌───────────────────────────┐  │
+│  │ [CSS grid heatmap]        │  │
+│  │ Daily activity intensity   │  │
+│  │ GitHub-style calendar      │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  VOLUME BY WEEK                 │
+│  ┌───────────────────────────┐  │
+│  │ [Stacked bar chart]       │  │
+│  │ Weekly minutes by sport   │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  PEAK PERFORMANCES              │
+│  ┌───────────────────────────┐  │
+│  │ Monthly bests:             │  │
+│  │ Best pace, longest run,   │  │
+│  │ longest duration, max HR  │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ─────────────────────────────  │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
+└─────────────────────────────────┘
+```
+
+### Key Features
+
+- **Period selector:** 4-week, 8-week, 12-week views
+- **Sport filter:** Filter all charts by sport type (running, cycling, etc.)
+- **Polarization tracking:** Seiler's 80/20 model with PI formula
+- **Efficiency scatter:** Speed/HR ratio trend for aerobic fitness tracking
+- **Calendar heatmap:** GitHub-style CSS grid showing daily activity intensity
+- **7 tRPC endpoints:** Each chart section backed by its own optimized query
+
+---
+
+## 4b. AI Coach Page (NEW)
+
+4 specialist AI agents powered by local Ollama inference with real-time data context.
+
+### Layout
+
+```
+┌─────────────────────────────────┐
+│  AI Coach                       │
+│                                 │
+│  ┌───┬───┬───┬───┐             │
+│  │🔬 │🧠 │🥗 │💤 │  Agent tabs  │
+│  │Sci│Psy│Nut│Rec│             │
+│  └───┴───┴───┴───┘             │
+│                                 │
+│  QUICK PROMPTS                  │
+│  [What should I train today?]   │
+│  [Why is my readiness low?]     │
+│  [How's my training balance?]   │
+│                                 │
+│  CHAT                           │
+│  ┌───────────────────────────┐  │
+│  │ 🤖 Sport Scientist:       │  │
+│  │ Based on your last 14 days│  │
+│  │ your polarization index   │  │
+│  │ is 1.87 — good 80/20...  │  │
+│  │                           │  │
+│  │ 👤 You:                    │  │
+│  │ Should I do intervals     │  │
+│  │ tomorrow?                 │  │
+│  │                           │  │
+│  │ 🤖 [typing indicator ···] │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │ Type a message...    [Send]│  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ─────────────────────────────  │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
+└─────────────────────────────────┘
+```
+
+### Key Features
+
+- **Agent selector tabs:** Switch between 4 specialist personas
+- **Quick prompt chips:** Pre-built questions for common queries
+- **Typing indicator:** Shows while Ollama generates response
+- **Markdown rendering:** Responses rendered with headers, lists, bold
+- **Data-driven context:** Each message includes last 14 days of real metrics
+- **Fallback:** Template responses if Ollama is unavailable
 
 ---
 
@@ -289,7 +421,7 @@ Comprehensive sleep analytics and coaching.
 │  └───────────────────────────┘  │
 │                                 │
 │  ─────────────────────────────  │
-│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+│  [🏠] [📊] [🏋️] [📈] [🌙] [⚙️]│
 └─────────────────────────────────┘
 ```
 
@@ -404,6 +536,21 @@ Comprehensive sleep analytics and coaching.
 4. Review load focus distribution
 5. Adjust plan if overreaching detected
 
+### Journey 6: Zone Analysis & Polarization
+1. Open Zones tab → review weekly zone distribution
+2. Check polarization index (target: 80/20 split)
+3. Review zone trends over months
+4. Check efficiency scatter for aerobic fitness progression
+5. Browse activity calendar heatmap for consistency patterns
+6. Filter by sport to isolate running vs cycling zones
+
+### Journey 7: AI Coaching Consultation
+1. Open AI Coach → select specialist agent (e.g., Sport Scientist)
+2. Tap quick prompt or type custom question
+3. Agent responds with data-backed advice (uses last 14 days of metrics)
+4. Switch to Recovery Specialist for sleep/deload guidance
+5. Responses rendered in markdown with actionable recommendations
+
 ---
 
 ## 9. Charts Library (Recharts)
@@ -417,3 +564,10 @@ Comprehensive sleep analytics and coaching.
 | Sleep stages | Sleep | Stacked Bar | sleep.getDashboard |
 | Sleep debt | Sleep | Bar | sleep.getDebt |
 | Readiness history | Today | Sparkline | readiness.getHistory |
+| Zone distribution | Zones | Stacked Bar | zones.getWeeklyZoneDistribution |
+| Polarization index | Zones | Composed (Line + Bar) | zones.getPolarizationIndex |
+| Zone trends | Zones | 100% Stacked Area | zones.getZoneTrends |
+| Efficiency trend | Zones | Scatter | zones.getEfficiencyTrend |
+| Activity calendar | Zones | CSS Grid Heatmap | zones.getActivityCalendar |
+| Volume by week | Zones | Stacked Bar | zones.getVolumeByWeek |
+| Peak performances | Zones | Table / Cards | zones.getPeakPerformances |

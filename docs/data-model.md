@@ -1,4 +1,4 @@
-# Data Model — GarminCoach v2.0
+# Data Model — GarminCoach v2.1
 
 ## Entity Relationship Overview
 
@@ -181,10 +181,28 @@ Individual activity/workout records.
 | avgStrideLength | DOUBLE PRECISION | Stride length (m) |
 | gctBalance | DOUBLE PRECISION | L/R balance (%) |
 | trainingEffect | DOUBLE PRECISION | Garmin Training Effect |
+| hrZoneMinutes | JSONB | HR zone time distribution (see below) |
 | rawGarminData | JSONB | Full API response |
 | syncedAt | TIMESTAMP | |
 
 **Indexes:** `(userId, startedAt)`, `(garminActivityId)` UNIQUE
+
+#### hr_zone_minutes JSONB Structure
+
+Minutes spent in each of the 5 standard HR zones per activity. Used by the
+Zone Analytics dashboard for distribution, polarization, and trend analysis.
+
+```json
+{
+  "zone1": 12.5,    // Zone 1: 50–60% HRmax (recovery)
+  "zone2": 18.3,    // Zone 2: 60–70% HRmax (aerobic base)
+  "zone3": 8.1,     // Zone 3: 70–80% HRmax (tempo)
+  "zone4": 4.2,     // Zone 4: 80–90% HRmax (threshold)
+  "zone5": 1.9      // Zone 5: 90–100% HRmax (VO2max)
+}
+```
+
+Values are in minutes (DOUBLE PRECISION). NULL when HR data is unavailable.
 
 ### 4. ReadinessScore
 

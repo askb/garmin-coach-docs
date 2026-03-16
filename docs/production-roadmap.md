@@ -1,7 +1,8 @@
-# Production Roadmap — GarminCoach v2.0
+# Production Roadmap — GarminCoach v2.1
 
 Complete implementation roadmap for the GarminCoach Sport Scientist platform.
-Phases 1–12 are **complete**. Phases 13–16 are **pending**.
+Phases 1–12 are **complete**. Phase 15 (AI Coach) is **complete** (v2.1).
+Phases 13, 14, 16 are **pending**.
 
 ---
 
@@ -11,7 +12,7 @@ Phases 1–12 are **complete**. Phases 13–16 are **pending**.
 |-------|-----------|---------|
 | Monorepo | T3 Turbo (pnpm + Turborepo) | Parallel builds, shared packages |
 | Web | Next.js 16 (App Router) | Frontend + API routes |
-| API | tRPC v11 | End-to-end typesafe (32+ endpoints) |
+| API | tRPC v11 | End-to-end typesafe (39+ endpoints) |
 | ORM | Drizzle ORM | Type-safe SQL + migrations |
 | Database | PostgreSQL 16 | 13 tables |
 | Cache | Redis 7 | Caching, rate limiting |
@@ -29,7 +30,7 @@ garmin-coach/
 ├── apps/
 │   └── nextjs/               # Next.js 16 frontend + API
 ├── packages/
-│   ├── api/                  # tRPC routers (10 routers, 32+ endpoints)
+│   ├── api/                  # tRPC routers (14 routers, 39+ endpoints)
 │   ├── auth/                 # Better-Auth configuration
 │   ├── db/                   # Drizzle schema (13 tables)
 │   ├── engine/               # Training engine (131 tests)
@@ -136,12 +137,14 @@ Built in `packages/engine/` with full test coverage:
 - **Today/Home:** Readiness circle, workout card, quick stats, adjustment buttons
 - **Advanced Trends:** Multi-metric overlay, trend regression, correlations, notable changes
 - **Training Load:** CTL/ATL/TSB chart, ACWR gauge, load focus, training status, recovery
+- **Zone Analytics:** 7-chart dashboard — zone distribution, polarization, efficiency, calendar (NEW v2.1)
 - **Sleep Dashboard:** Sleep stages, score, debt, coach, timing analysis
+- **AI Coach:** 4 specialist agents via local Ollama inference (NEW v2.1)
 - **Onboarding:** 3-step flow (profile → sports → schedule)
 - **Settings:** Profile, Garmin, preferences
 - **Workout Detail:** Structured blocks, targets, explanation
 
-5-tab bottom navigation: Today · Trends · Training · Sleep · Settings
+6-tab bottom navigation: Today · Trends · Training · Zones · Sleep · Settings
 
 **Deliverable:** Fully functional web app with E2E tests (20 Playwright tests).
 
@@ -213,6 +216,58 @@ Additional engine modules beyond core readiness/strain:
 
 ---
 
+## ✅ Phase 12a: Zone Analytics Dashboard (Complete — v2.1)
+
+7-chart zone analytics dashboard with sport filtering and polarization tracking.
+
+### Implemented Features
+
+- **Weekly zone distribution:** Stacked bar chart — HR zone minutes by ISO week
+- **Polarization index:** Seiler's formula: PI = ln(1/Σpi²), composed chart
+- **Zone trends:** 100% stacked area chart — monthly zone % breakdown
+- **Efficiency trend:** Scatter chart — pace/HR efficiency index per activity
+- **Activity calendar:** CSS grid heatmap — daily activity intensity
+- **Volume by week:** Stacked bar — weekly minutes by sport type
+- **Peak performances:** Monthly bests for pace, distance, duration, HR
+- **Sport filtering:** All charts filterable by sport type
+
+### Technical Implementation
+
+- New page: `/zones`
+- New tRPC router: `zones` (7 endpoints)
+- `hr_zone_minutes` JSONB field on Activity table
+- Recharts for all chart visualizations
+
+**Deliverable:** Full zone analytics dashboard with 7 chart sections.
+
+---
+
+## ✅ Phase 12b: Docker Tuning & Health Monitoring (Complete — v2.1)
+
+### Docker Compose Tuning
+
+- PostgreSQL: memory limit 2GB, CPU 2.0 cores, shared_buffers=256MB, effective_cache_size=1GB, work_mem=16MB, max_connections=50, slow query logging (>1s)
+- Redis: memory limit 256MB, CPU 0.5 cores, maxmemory 128MB with allkeys-lru eviction
+- Both containers: `restart: unless-stopped`
+
+### Health Monitoring
+
+- `scripts/health-check.sh` — comprehensive system health checker
+- Checks: memory, disk, Docker containers, PostgreSQL data, Redis memory, Next.js, power/battery, NVMe
+- Crash history classification from journalctl boot records
+- Recommendations mode (`--full`) for containers without limits, s2idle warnings
+
+### Data Quality Fixes
+
+- Removed 4 seed VO2max contamination values (47–50.5 → real max is 33.2)
+- Removed duplicate VO2max entries
+- Updated profile to real user stats: age=48, mass_kg=115, resting_hr=68, vo2max_running=32.9, max_hr=172
+- Hydration mismatch fix: replaced `toLocaleDateString()` with deterministic formatters
+
+**Deliverable:** Production-ready resource governance and monitoring.
+
+---
+
 ## 🔲 Phase 13: Activity Detail Page (Pending)
 
 Individual activity view with rich data visualization.
@@ -257,26 +312,31 @@ Daily athlete journal with mood tracking and metric correlation.
 
 ---
 
-## 🔲 Phase 15: AI Coach Chat (Pending)
+## ✅ Phase 15: AI Coach — Specialist Agents (Complete — v2.1)
 
-LLM-powered coaching chat with data-backed answers.
+AI-powered coaching chat with 4 specialist agents using local Ollama inference.
 
-### Planned Features
+### Implemented Features
 
-- **Chat interface:** Streaming chat bubbles with typing indicator
-- **Context injection:** Latest readiness, last 7 days metrics, current plan, profile
-- **Quick action chips:** "What should I do?", "Why is readiness low?", "Make it harder"
-- **Intent handling:** Daily recommendation, readiness explanation, difficulty adjustment, race taper, weekly summary
-- **Guardrails:** No medical advice, data-only responses, uncertainty acknowledgment
+- **4 specialist agents:** Sport Scientist, Sport Psychologist, Nutritionist, Recovery Specialist
+- **Local AI inference:** Ollama with gpt-oss:20b model — zero cost, fully private
+- **Real-time data context:** Last 14 days of metrics, activities, zones, readiness gathered from PostgreSQL
+- **Architecture:** Browser → tRPC → data context builder → system prompt → Ollama HTTP API → response
+- **Fallback:** Data-driven template responses when Ollama is unavailable
+- **Agent selector tabs:** Switch between specialist personas
+- **Quick prompt chips:** Pre-built questions for common queries
+- **Markdown rendering:** Responses rendered with headers, lists, emphasis
+- **Typing indicator:** Loading state while Ollama generates
 
-### Technical Requirements
+### Technical Implementation
 
-- New page: `/chat`
-- LLM: OpenAI GPT-4o-mini via Vercel AI SDK
-- Uses `ChatMessage` table (already in schema)
-- tRPC endpoints: `chat.sendMessage`, `chat.getHistory`
-- System prompt with strict guardrails
-- Add Chat tab to bottom navigation (6 tabs or replace one)
+- `packages/api/src/lib/ollama.ts` — Ollama HTTP client
+- `packages/api/src/lib/agent-prompts.ts` — 4 specialist system prompts
+- `packages/api/src/lib/data-context.ts` — Real-time data context builder
+- `packages/api/src/router/chat.ts` — tRPC chat router (2 endpoints)
+- Uses `ChatMessage` table for conversation history
+
+**Deliverable:** Fully functional AI coaching with local inference.
 
 ---
 
@@ -315,12 +375,14 @@ Phase 1 (Bootstrap)
                                └── Phase 9 (Testing)
                                     └── Phase 10 (CI/CD)
                                          └── Phase 11 (Science Docs)
-                                              └── Phase 12 (Docs Overhaul) ← YOU ARE HERE
+                                              └── Phase 12 (Docs Overhaul)
+                                                   ├── Phase 12a (Zone Analytics) ← v2.1
+                                                   ├── Phase 12b (Docker/Health)  ← v2.1
+                                                   └── Phase 15 (AI Agents)       ← v2.1
 
 Remaining (can be done in parallel):
 ├── Phase 13 (Activity Detail)
 ├── Phase 14 (Journal)
-├── Phase 15 (AI Coach Chat)
 └── Phase 16 (VO2max & Predictions Page)
 ```
 
@@ -335,14 +397,55 @@ Remaining (can be done in parallel):
 | 3: Garmin | ✅ Complete | OAuth, webhooks, backfill |
 | 4: Readiness Engine | ✅ Complete | Score, strain, ACWR, baselines, anomalies |
 | 5: Coaching Logic | ✅ Complete | 16 templates, planner, modulation |
-| 6: tRPC API | ✅ Complete | 10 routers, 32+ endpoints |
-| 7: Web App | ✅ Complete | 7+ pages, Recharts, E2E tests |
+| 6: tRPC API | ✅ Complete | 14 routers, 39+ endpoints |
+| 7: Web App | ✅ Complete | 11+ pages, Recharts, E2E tests |
 | 8: Extended Engine | ✅ Complete | VO2max, race pred, training status, sleep, trends |
 | 9: Testing | ✅ Complete | 161 total tests |
 | 10: CI/CD | ✅ Complete | GitHub Actions pipeline |
 | 11: Science Docs | ✅ Complete | Sport science reference |
 | 12: Docs Overhaul | ✅ Complete | Full documentation suite |
+| 12a: Zone Analytics | ✅ Complete | 7-chart zone dashboard, polarization (v2.1) |
+| 12b: Docker/Health | ✅ Complete | Resource limits, health-check.sh (v2.1) |
 | 13: Activity Detail | 🔲 Pending | Time-series charts, splits, maps |
 | 14: Journal | 🔲 Pending | Mood tracking, tags, correlations |
-| 15: AI Coach Chat | 🔲 Pending | LLM chat, guardrails, streaming |
+| 15: AI Coach Agents | ✅ Complete | 4 specialist agents, local Ollama (v2.1) |
 | 16: VO2max & Predictions | 🔲 Pending | VO2max chart, race calculator, paces |
+
+---
+
+## Production Recommendations (v2.1)
+
+### AI Infrastructure
+
+For production Ollama deployment:
+
+| Concern | Recommendation |
+|---------|---------------|
+| **Model serving** | Dedicated GPU instance (NVIDIA T4/A10G) or quantized CPU model |
+| **Scaling** | Ollama behind a load balancer with multiple model instances |
+| **Fallback** | Template response system already implemented — graceful degradation |
+| **Latency** | Expect 2–8s for 20B model; consider smaller quantized variants for <1s responses |
+| **Privacy** | Keep inference local/on-prem — zero data leaves the infrastructure |
+| **Model updates** | Pin model versions; test before rolling updates |
+
+### Monitoring & Alerting
+
+Based on crash history analysis from `scripts/health-check.sh`:
+
+| Signal | Alert Threshold | Action |
+|--------|----------------|--------|
+| Container OOM kills | Any occurrence | Increase memory limit or investigate leak |
+| PostgreSQL slow queries | > 1s (already logged) | Add indexes or optimize query |
+| Redis memory > 90% maxmemory | Approaching 128MB | Review eviction patterns |
+| Ollama response time | > 10s p95 | Consider model size reduction |
+| Boot crash frequency | > 2 unclean shutdowns/week | Investigate power/kernel issues |
+| Disk usage | > 85% on any volume | Clean Docker images, rotate logs |
+
+### Docker Resource Governance
+
+| Service | Current Limit | Production Recommendation |
+|---------|--------------|--------------------------|
+| PostgreSQL | 2GB RAM / 2 CPU | 4–8GB RAM for production workloads |
+| Redis | 256MB RAM / 0.5 CPU | Sufficient for single-user; scale with users |
+| Ollama | Unbounded | 8GB+ RAM for 20B model; GPU preferred |
+| Next.js | Unbounded | 1–2GB RAM limit recommended |

@@ -1,4 +1,4 @@
-# Engine Reference — GarminCoach v2.0
+# Engine Reference — GarminCoach v2.1
 
 > Every algorithm in the engine is evidence-based with peer-reviewed citations.
 > See [Sport Science Reference](sport-science-reference.md) for full academic context.
@@ -249,6 +249,41 @@ Classifies each session and rolling load distribution:
 | **Mixed** | Neither threshold met | Balanced distribution |
 
 Used in the Training Load dashboard to show load composition over time.
+
+### 5.1 Polarization Index (Seiler)
+
+Quantifies how polarized the training distribution is using Shannon entropy:
+
+```
+PI = ln(1 / Σ pᵢ²)
+
+where:
+  pᵢ = fraction of total training time in category i
+  Categories: easy (Zone 1–2), moderate (Zone 3), hard (Zone 4–5)
+```
+
+| PI Value | Interpretation |
+|----------|---------------|
+| > 2.0 | Highly polarized (strong 80/20 distribution) |
+| 1.5–2.0 | Moderately polarized |
+| 1.0–1.5 | Threshold-dominant (too much Zone 3) |
+| < 1.0 | Single-zone dominant |
+
+> Citation: Seiler KS, Kjerland GØ. *Scand J Med Sci Sports*. 2006;16(1):49–56.
+
+### 5.2 Aerobic Efficiency Index
+
+Tracks cardiac efficiency over time — higher values indicate better aerobic fitness:
+
+```
+Efficiency Index = speed(m/s) / avgHr × 1000
+```
+
+A rising efficiency trend at the same HR indicates improved running economy
+or aerobic adaptation. Used in the Zone Analytics scatter chart to visualize
+efficiency trends across activities.
+
+> Reference: Seiler's polarized training model applied to cardiac drift analysis.
 
 ---
 

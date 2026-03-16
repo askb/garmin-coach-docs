@@ -1,8 +1,8 @@
-# Product Specification v2.0 — GarminCoach Sport Scientist
+# Product Specification v2.1 — GarminCoach Sport Scientist
 
 ## 1. Product Vision
 
-GarminCoach v2.0 is an evidence-based sport scientist platform that transforms
+GarminCoach v2.1 is an evidence-based sport scientist platform that transforms
 Garmin wearable data into actionable training intelligence. Every algorithm cites
 peer-reviewed research. The system serves athletes from beginner to elite across
 running, cycling, strength, swimming, and team sports.
@@ -20,6 +20,10 @@ running, cycling, strength, swimming, and team sports.
 5. **Performance estimation** — VO2max (3 methods), race prediction (5K–marathon),
    training status classification
 6. **Recovery intelligence** — Recovery time estimation, sleep coaching, anomaly detection
+7. **Zone analytics** — HR zone distribution tracking, Seiler's polarization index,
+   zone trends, aerobic efficiency trend, activity calendar heatmap, peak performances
+8. **AI specialist coaching** — 4 AI agents (Sport Scientist, Psychologist, Nutritionist,
+   Recovery Specialist) powered by local Ollama inference with real-time data context
 
 ---
 
@@ -216,14 +220,15 @@ Pearson r with p-values for 6 standard metric pairs:
 
 ---
 
-## 5. API Layer (tRPC v11 — 32+ endpoints)
+## 5. API Layer (tRPC v11 — 39+ endpoints)
 
-### 10 Routers
+### 14 Routers
 
 | Router | Endpoints | Purpose |
 |--------|-----------|---------|
 | analytics | 7 | Trends, correlations, running form, notable changes, training status |
 | auth | 2 | Login, session management |
+| chat | 2 | AI specialist agent messaging (Ollama-powered) |
 | garmin | 4 | OAuth, webhook, backfill, sync status |
 | journal | 4 | CRUD for athlete journal entries |
 | post | 4 | Legacy content management |
@@ -232,18 +237,20 @@ Pearson r with p-values for 6 standard metric pairs:
 | sleep | 3 | Dashboard data, debt tracking, coach recommendations |
 | workout | 4 | Today's workout, weekly plan, detail, difficulty adjustment |
 | trends | 6 | Summary, multi-metric charts, period comparisons |
+| zones | 7 | Zone distribution, polarization index, zone trends, efficiency, calendar, volume, peaks |
 
 ---
 
 ## 6. Frontend (Next.js 16 + Tailwind + Recharts)
 
-### 5-Tab Navigation
+### 6-Tab Navigation
 
 | Tab | Page | Key Features |
 |-----|------|-------------|
 | Today | Home/Dashboard | Readiness circle, workout card, quick stats, adjustment buttons |
 | Trends | Advanced Trends | Multi-metric overlay charts, trend regression, correlations table, notable changes |
 | Training | Training Load | CTL/ATL/TSB line chart, ACWR gauge, load focus pie chart, recovery estimation, training status badge |
+| Zones | Zone Analytics | Weekly HR zone distribution, polarization index, zone trends, efficiency scatter, activity calendar, volume by sport, peak performances |
 | Sleep | Sleep Dashboard | Sleep stages bar chart, sleep score, debt tracker, sleep coach advice, timing analysis |
 | Settings | Settings | Profile edit, Garmin connection, preferences |
 
@@ -251,6 +258,7 @@ Pearson r with p-values for 6 standard metric pairs:
 
 - **Onboarding** — 3-step flow: About You → Sports & Goals → Weekly Schedule
 - **Workout Detail** — Structured blocks (warm-up/main/cooldown), target zones, "Why this today" explanation
+- **AI Coach** — 4 specialist agent tabs, quick prompt chips, markdown rendering, typing indicator
 
 ---
 
@@ -278,15 +286,18 @@ Pearson r with p-values for 6 standard metric pairs:
 
 ## 9. What's Built vs. Remaining
 
-### ✅ Complete (Phases 1–12)
+### ✅ Complete (Phases 1–12, plus v2.1 additions)
 
 - Full engine with 131 tests and evidence-based citations
 - 13-table PostgreSQL schema via Drizzle
-- 32+ tRPC endpoints across 10 routers
-- 7+ frontend pages with Recharts visualizations
+- 39+ tRPC endpoints across 14 routers (including zones + chat)
+- 11+ frontend pages with Recharts visualizations
+- Zone Analytics dashboard with 7 chart sections
+- AI Specialist Agents (4 personas via local Ollama)
 - Onboarding, settings, Garmin OAuth flow
 - GitHub Actions CI pipeline
-- Docker development environment
+- Docker development environment with resource limits
+- Health monitoring script (scripts/health-check.sh)
 - 16/16 turbo typecheck tasks passing
 
 ### 🔲 Remaining (Phases 13–16)
@@ -295,5 +306,5 @@ Pearson r with p-values for 6 standard metric pairs:
 |-------|---------|-------------|
 | 13 | Activity Detail Page | Individual activity view with time-series charts, splits, HR zones |
 | 14 | Journal | Daily journal entries with mood tracking, tags, and correlation to metrics |
-| 15 | AI Coach Chat | LLM-powered chat with data-backed answers, guardrails, streaming |
+| ~~15~~ | ~~AI Coach Chat~~ | ✅ **Completed** — AI specialist agents with local Ollama inference |
 | 16 | VO2max & Predictions Page | VO2max history chart, race prediction calculator UI, training paces |

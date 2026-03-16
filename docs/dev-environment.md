@@ -1,6 +1,6 @@
 # Development Environment — Fedora 41 Setup Guide
 
-Complete guide for developing GarminCoach v2.0 on Fedora Linux 41.
+Complete guide for developing GarminCoach v2.1 on Fedora Linux 41.
 
 ---
 
@@ -21,6 +21,7 @@ works natively on Fedora 41 with no WSL or VM needed.
 | Turborepo | ✅ | npm package |
 | Vitest / Playwright | ✅ | `npx playwright install-deps` for system libs |
 | Git | ✅ | Pre‑installed or `sudo dnf install git` |
+| Ollama (AI inference) | ✅ | Pre-installed at `/usr/local/bin/ollama` |
 | VS Code | ✅ | Flatpak or official .rpm |
 | Android Studio | ✅ | `sudo dnf install android-studio` or Flatpak |
 | EAS Build (cloud) | ✅ 100% | Builds run on Expo servers |
@@ -112,6 +113,118 @@ podman run -d --name redis -p 6379:6379 redis:7-alpine
 sudo dnf install redis
 sudo systemctl enable --now redis
 ```
+
+---
+
+## 3a. Ollama Setup (Local AI Inference)
+
+Ollama provides local LLM inference for the AI specialist agents. Zero cost,
+fully private — no data leaves the machine.
+
+### 3a.1 — Installation
+
+```bash
+# Already installed at /usr/local/bin/ollama
+# If not present:
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+### 3a.2 — Pull the Model
+
+```bash
+ollama pull gpt-oss:20b
+```
+
+### 3a.3 — Start the Service
+
+```bash
+# Ollama runs as a systemd service
+sudo systemctl enable --now ollama
+ollama serve  # or run manually
+```
+
+### 3a.4 — Environment Variables
+
+Add to `.env`:
+
+```bash
+OLLAMA_URL=http://localhost:11434   # Ollama API endpoint
+OLLAMA_MODEL=gpt-oss:20b           # Model for AI agents
+```
+
+### 3a.5 — Verify
+
+```bash
+curl http://localhost:11434/api/tags  # List available models
+```
+
+The AI coach falls back to template responses if Ollama is unavailable,
+so it's not required for core functionality.
+
+---
+
+## 3b. Docker Compose Resource Limits
+
+The project's `docker-compose.yml` includes tuned resource limits:
+
+### PostgreSQL
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 2G
+      cpus: '2.0'
+command: >
+  postgres
+    -c shared_buffers=256MB
+    -c effective_cache_size=1GB
+    -c work_mem=16MB
+    -c max_connections=50
+    -c log_min_duration_statement=1000
+restart: unless-stopped
+```
+
+### Redis
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 256M
+      cpus: '0.5'
+command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+restart: unless-stopped
+```
+
+---
+
+## 3c. Health Monitoring
+
+### scripts/health-check.sh
+
+Comprehensive system health checker for the development environment.
+
+```bash
+./scripts/health-check.sh          # Quick health check
+./scripts/health-check.sh --full   # Full check with recommendations
+```
+
+**Checks performed:**
+- Memory usage and available RAM
+- Disk space on all mounted volumes
+- Docker container status and resource consumption
+- PostgreSQL data counts (metrics, activities, readiness scores)
+- Redis memory usage
+- Next.js dev server status
+- Power/battery status (for laptop development)
+- NVMe drive health (SMART data)
+- Crash history classification from `journalctl` boot records
+
+**Recommendations mode (`--full`):**
+- Flags containers without memory limits
+- Warns about `s2idle` suspend issues
+- Suggests resource tuning based on current usage
 
 ---
 
@@ -266,6 +379,9 @@ pnpm install
 # Start infrastructure
 docker compose up -d    # Postgres + Redis
 
+# Start Ollama (for AI coach — optional)
+ollama serve &          # Or: sudo systemctl start ollama
+
 # Setup database
 cp .env.example .env    # Edit with your DATABASE_URL
 pnpm db:push            # Apply Drizzle schema
@@ -299,9 +415,10 @@ pnpm type-check         # TypeScript
 Fedora 41 provides:
 - Modern Node.js and toolchain out of the box
 - Native Copilot CLI integration
+- Native Ollama support for local AI inference
 - Rock‑solid terminal tooling (podman, git, gh)
 - Full Android local development and testing
 - Zero barriers to EAS cloud builds & Vercel deploys
 
-The complete GarminCoach v2.0 platform (backend, engine, website, tests, CI/CD) can be
+The complete GarminCoach v2.1 platform (backend, engine, AI agents, website, tests, CI/CD) can be
 developed entirely on Fedora 41.
