@@ -1,29 +1,44 @@
-# UX Flows & Screens — GarminCoach
+# UX Flows & Screens — GarminCoach v2.0
 
 ## Screen Map
 
 ```
-/              → Home / Dashboard (readiness + workout)
+/              → Home / Today (readiness + workout + quick stats)
 /onboarding    → 3-step setup flow
-/trends        → History / Trends (7d / 28d charts)
-/settings      → Profile, Garmin, data privacy
-/workout/[id]  → Workout detail (structure, targets, explanation)
+/trends        → Advanced Trends (multi-metric overlay, regression, correlations)
+/training      → Training Load (CTL/ATL/TSB, ACWR, load focus, status)
+/sleep         → Sleep Dashboard (stages, score, debt, coach, timing)
+/settings      → Profile, Garmin connection, preferences
+/workout/[id]  → Workout Detail (structure, targets, explanation)
 ```
 
 ---
 
-## 1. Onboarding Flow
+## Navigation — 5-Tab Bottom Bar
 
-Progress bar shows 3 segments. No Garmin OAuth in onboarding. No confirmation screen.
+| Tab | Icon | Route | Screen |
+|-----|------|-------|--------|
+| Today | 🏠 | `/` | Home — readiness + workout |
+| Trends | 📊 | `/trends` | Advanced Trends |
+| Training | 🏋️ | `/training` | Training Load |
+| Sleep | 🌙 | `/sleep` | Sleep Dashboard |
+| Settings | ⚙️ | `/settings` | Settings & Profile |
+
+---
+
+## 1. Onboarding Flow (3 Steps)
+
+Progress bar shows 3 segments. Minimal friction — get to the dashboard fast.
 
 ### Step 1: About You
 
 - Age, sex (male / female / other selector), weight (kg), height (cm)
 - Grid layout with inputs
+- Experience level selector: Beginner / Intermediate / Advanced
 
 ### Step 2: Sports & Goals
 
-- Multi‑select sport chips: Running, Cycling, Strength, Swimming, Team Sport
+- Multi-select sport chips: Running, Cycling, Strength, Swimming, Team Sport
 - For each selected sport, choose a goal:
   - 🏃 Maintain Fitness
   - 🏆 Performance
@@ -32,15 +47,15 @@ Progress bar shows 3 segments. No Garmin OAuth in onboarding. No confirmation sc
 
 ### Step 3: Weekly Schedule
 
-- Day‑of‑week circle toggles (M T W T F S S)
-- Minutes‑per‑session slider (15–120 min)
-- "Let's Go 🚀" button calls `profile.upsert` mutation and redirects to `/`
+- Day-of-week circle toggles (M T W T F S S)
+- Minutes-per-session slider (15–120 min)
+- "Let's Go 🚀" button calls `profile.upsert` and redirects to `/`
 
 ---
 
 ## 2. Home / Today Screen
 
-The dashboard is a `DashboardHome` component inside a Suspense boundary. The page prefetches `trpc.readiness.getToday` and `trpc.workout.getToday`. The layout below represents the target design.
+The primary daily touchpoint. Prefetches `readiness.getToday` and `workout.getToday`.
 
 ### Layout
 
@@ -50,7 +65,8 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │                                 │
 │  ┌───────────────────────────┐  │
 │  │   READINESS: 78           │  │
-│  │   ████████████░░░  HIGH   │  │
+│  │   ████████████░░░  GOOD   │  │
+│  │   Confidence: High        │  │
 │  │                           │  │
 │  │   "HRV strong, but 2     │  │
 │  │    hard days — moderate   │  │
@@ -62,6 +78,7 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │  │  🏃 Tempo Run             │  │
 │  │  40–50 min · Zone 3–4    │  │
 │  │  Building 5K speed        │  │
+│  │  Est. Recovery: 24–36h   │  │
 │  │                           │  │
 │  │  [View Details]           │  │
 │  └───────────────────────────┘  │
@@ -74,32 +91,231 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │  QUICK STATS                    │
 │  Sleep: 7h 20m  │  HRV: 52ms   │
 │  Steps: 8,240   │  Strain: 11.2│
+│  RHR: 58 bpm    │  ACWR: 1.05  │
 │                                 │
 │  ─────────────────────────────  │
-│  [🏠] [📊] [⚙️]               │
+│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
 └─────────────────────────────────┘
 ```
 
-### Readiness Card
+### Key Interactions
 
-- Large score number with color background:
-  - Prime (80+): Green
-  - High (60–79): Blue‑green
-  - Moderate (40–59): Yellow
-  - Low (20–39): Orange
-  - Poor (0–19): Red
-- Progress bar showing score position
-- One‑sentence explanation text
-
-### Adjustment Buttons
-
-- "Too tired?" → down‑shift workout by 1 zone (e.g., tempo → easy run)
-- "Feeling fresh?" → up‑shift by 1 zone (e.g., easy → tempo with strides)
-- Animates workout card to show new recommendation
+- **Readiness card:** Large score with zone color background and confidence badge
+- **Workout card:** Tap → Workout Detail page
+- **Adjustment buttons:** "Too tired" / "Feeling fresh" → re-generate workout with ±1 zone shift
+- **Quick stats:** Tap any stat → navigates to relevant dashboard
 
 ---
 
-## 3. Workout Detail Screen
+## 3. Advanced Trends Page
+
+Multi-metric analytics dashboard with Recharts visualizations.
+
+### Layout
+
+```
+┌─────────────────────────────────┐
+│  Advanced Trends         7D 28D │
+│                                 │
+│  METRIC OVERLAY CHART           │
+│  ┌───────────────────────────┐  │
+│  │ [Multi-line Recharts]     │  │
+│  │ Readiness ── Strain ──   │  │
+│  │ HRV ── Sleep ── RHR      │  │
+│  │                           │  │
+│  │ Toggle metrics on/off     │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  TREND ANALYSIS                 │
+│  ┌───────────────────────────┐  │
+│  │ Readiness: ↑ Improving    │  │
+│  │   +3.2/week (p=0.02)     │  │
+│  │ HRV: → Stable             │  │
+│  │   +0.1/week (p=0.81)     │  │
+│  │ Sleep: ↓ Declining        │  │
+│  │   −12 min/week (p=0.04)  │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  CORRELATIONS                   │
+│  ┌───────────────────────────┐  │
+│  │ Sleep → Readiness: r=0.72│  │
+│  │ HRV → Readiness:   r=0.68│  │
+│  │ Load → Readiness:  r=−0.45│ │
+│  │ Sleep → HRV:       r=0.61│  │
+│  │ Stress → Readiness: r=−0.38│ │
+│  │ RHR → Readiness:  r=−0.31│  │
+│  └───────────────────────────┘  │
+│                                 │
+│  NOTABLE CHANGES                │
+│  ┌───────────────────────────┐  │
+│  │ ⚠️ HRV dropped 18% below │  │
+│  │   baseline on Thu         │  │
+│  │ ✅ Sleep quality improved  │  │
+│  │   since bedtime adjustment│  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ─────────────────────────────  │
+│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+└─────────────────────────────────┘
+```
+
+### Key Features
+
+- **Metric overlay:** Select which metrics to display on a shared time axis
+- **Period toggle:** 7-day and 28-day views
+- **Trend regression:** Linear regression with slope, direction, significance
+- **Correlation table:** Pearson r for 6 standard metric pairs
+- **Notable changes:** Annotated markers for significant deviations
+
+---
+
+## 4. Training Load Page
+
+Fitness-fatigue model visualization with load management tools.
+
+### Layout
+
+```
+┌─────────────────────────────────┐
+│  Training Load          28D 90D │
+│                                 │
+│  CTL / ATL / TSB CHART          │
+│  ┌───────────────────────────┐  │
+│  │ [Recharts line chart]     │  │
+│  │ CTL (fitness) ──          │  │
+│  │ ATL (fatigue) ──          │  │
+│  │ TSB (form) ── (area fill) │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  TRAINING STATUS                │
+│  ┌───────────────────────────┐  │
+│  │  🟢 PRODUCTIVE            │  │
+│  │  Fitness improving with    │  │
+│  │  appropriate load balance  │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ACWR GAUGE                     │
+│  ┌───────────────────────────┐  │
+│  │    [Gauge / speedometer]   │  │
+│  │         1.12               │  │
+│  │    ◄─────●──────►          │  │
+│  │  0.8   sweet   1.3   1.5  │  │
+│  │  under  spot  caution dngr │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  LOAD FOCUS (Last 7 Days)       │
+│  ┌───────────────────────────┐  │
+│  │  [Pie/donut chart]         │  │
+│  │  Aerobic: 65%              │  │
+│  │  Anaerobic: 20%            │  │
+│  │  Mixed: 15%                │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  RECOVERY                       │
+│  ┌───────────────────────────┐  │
+│  │  Est. recovery: 18h left   │  │
+│  │  Next hard session: OK     │  │
+│  │  Ramp rate: 4.2 TSS/day   │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ─────────────────────────────  │
+│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+└─────────────────────────────────┘
+```
+
+### Key Features
+
+- **CTL/ATL/TSB chart:** Dual-axis line chart with TSB as filled area
+- **Training status badge:** One of 6 states with explanation
+- **ACWR gauge:** Visual gauge showing current position in risk zones
+- **Load focus:** Pie/donut chart of aerobic/anaerobic/mixed distribution
+- **Recovery panel:** Estimated recovery remaining, ramp rate warning
+- **Period toggle:** 28-day and 90-day views
+
+---
+
+## 5. Sleep Dashboard
+
+Comprehensive sleep analytics and coaching.
+
+### Layout
+
+```
+┌─────────────────────────────────┐
+│  Sleep Dashboard         7D 28D │
+│                                 │
+│  LAST NIGHT                     │
+│  ┌───────────────────────────┐  │
+│  │  Sleep Score: 82          │  │
+│  │  Duration: 7h 45m         │  │
+│  │  Efficiency: 91%          │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  SLEEP STAGES                   │
+│  ┌───────────────────────────┐  │
+│  │  [Stacked bar chart]      │  │
+│  │  Deep ███ 1h 20m (18%)   │  │
+│  │  REM  ███ 1h 45m (23%)   │  │
+│  │  Light ██ 4h 10m (54%)   │  │
+│  │  Awake █  30m (6%)       │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  SLEEP DEBT                     │
+│  ┌───────────────────────────┐  │
+│  │  7-Day Debt: 2h 15m       │  │
+│  │  Status: ✅ Manageable    │  │
+│  │  [Bar chart: daily debt]  │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  SLEEP COACH                    │
+│  ┌───────────────────────────┐  │
+│  │  💡 Your sleep need: 8.5h │  │
+│  │  (base 7.5h + athlete +1h)│  │
+│  │                           │  │
+│  │  Recommended bedtime:     │  │
+│  │  10:15 PM (for 6:30 AM   │  │
+│  │  wake time)               │  │
+│  │                           │  │
+│  │  Tip: Your deep sleep %   │  │
+│  │  improves when bedtime is │  │
+│  │  before 10:30 PM          │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  TIMING ANALYSIS                │
+│  ┌───────────────────────────┐  │
+│  │  Avg bedtime: 10:42 PM    │  │
+│  │  Avg wake time: 6:28 AM   │  │
+│  │  Consistency: 82%          │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ─────────────────────────────  │
+│  [🏠] [📊] [🏋️] [🌙] [⚙️]    │
+└─────────────────────────────────┘
+```
+
+### Key Features
+
+- **Sleep score:** Last night's score with trend indicator
+- **Sleep stages chart:** Stacked bar showing deep/REM/light/awake distribution
+- **Sleep debt tracker:** Rolling 7-day cumulative debt with severity badge
+- **Sleep coach:** Personalized sleep need, bedtime recommendation, tips
+- **Timing analysis:** Bedtime/wake time consistency tracking
+
+---
+
+## 6. Settings Page
+
+- **Profile:** Edit age, weight, height, experience level
+- **Sports & Goals:** Add/remove sports, change goals
+- **Weekly Schedule:** Update available days and time per session
+- **Garmin Connection:** Status, last sync time, reconnect, disconnect
+- **Preferences:** Units (metric/imperial), notification settings
+- **Data & Privacy:** Export data, delete account
+- **About:** Version, support, privacy policy
+
+---
+
+## 7. Workout Detail Page
 
 ### Layout
 
@@ -109,18 +325,20 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │                                 │
 │  🏃 Tempo Run                   │
 │  Zone 3–4 · 40–50 min          │
+│  Est. Strain: 10–12             │
 │                                 │
 │  WHY THIS TODAY                 │
-│  "Your readiness is High (78).  │
+│  "Your readiness is Good (78).  │
 │   You've had 2 easy days. Time  │
 │   to build 5K speed with        │
-│   sustained threshold work."    │
+│   sustained threshold work.     │
+│   Training status: Productive." │
 │                                 │
 │  ─────────────────────────────  │
 │                                 │
 │  WORKOUT STRUCTURE              │
 │                                 │
-│  1. Warm‑up         10 min      │
+│  1. Warm-up         10 min      │
 │     Easy jog, Zone 1–2          │
 │     Include dynamic stretches   │
 │                                 │
@@ -129,7 +347,7 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │     Target HR: 155–168 bpm      │
 │     Zone 3–4                    │
 │                                 │
-│  3. Cool‑down        10 min     │
+│  3. Cool-down        10 min     │
 │     Easy jog + walking          │
 │     Zone 1                      │
 │                                 │
@@ -140,148 +358,62 @@ The dashboard is a `DashboardHome` component inside a Suspense boundary. The pag
 │  Avg Pace: 4:30–5:00/km        │
 │  HR Zone: 3–4 (148–170 bpm)    │
 │  Est. Strain: 10–12             │
+│  Est. Recovery: 24–36h          │
 │                                 │
 │  ┌───────────────────────────┐  │
 │  │    🎯 Start Workout       │  │
 │  └───────────────────────────┘  │
-│                                 │
-│  [Export to Garmin] (future)    │
 └─────────────────────────────────┘
 ```
 
 ---
 
-## 4. History / Trends Screen
+## 8. Key User Journeys
 
-### 4.1 Weekly Overview (Default View)
+### Journey 1: Morning Check-In (Primary)
+1. Open app → see readiness score + zone
+2. Review today's workout recommendation
+3. Check quick stats (sleep, HRV, strain)
+4. Tap "View Details" → review workout structure
+5. Go train
 
-```
-┌─────────────────────────────────┐
-│  ← Back          7D  28D       │
-│                                 │
-│  READINESS vs STRAIN            │
-│  ┌───────────────────────────┐  │
-│  │ 100│·  ·                  │  │
-│  │  80│·  ·  ·     ·        │  │
-│  │  60│         ·     ·  ·  │  │
-│  │  40│              ·      │  │
-│  │  20│                     │  │
-│  │   0├──┬──┬──┬──┬──┬──┬──│  │
-│  │    M  T  W  T  F  S  S  │  │
-│  │                          │  │
-│  │  ── Readiness  ── Strain │  │
-│  └───────────────────────────┘  │
-│                                 │
-│  THIS WEEK                      │
-│  Avg Readiness: 67 (▲ +4)      │
-│  Total Strain: 78.4             │
-│  Workouts: 5 of 5 planned      │
-│                                 │
-│  SLEEP TREND                    │
-│  Avg: 7h 10m (▼ -20min)        │
-│  "Consider earlier bedtime to   │
-│   maintain readiness"           │
-│                                 │
-│  HRV TREND                     │
-│  Avg: 48ms (▲ +3ms)            │
-│  "Trending up — good recovery"  │
-│                                 │
-│  ─────────────────────────────  │
-│  [🏠] [📊] [⚙️]               │
-└─────────────────────────────────┘
-```
+### Journey 2: Post-Workout Review
+1. Garmin syncs → strain updates automatically
+2. Open app → see updated training load
+3. Check ACWR gauge on Training page
+4. View recovery time estimate
+5. Tomorrow's workout auto-adjusts
 
-### 4.2 Annotations
+### Journey 3: Weekly Analysis
+1. Open Trends tab → review 7-day metric overlay
+2. Check trend regression (improving/declining/stable)
+3. Review correlations (what's driving readiness?)
+4. Note any notable changes flagged by the system
 
-- Mark hardest workout days with a ⚡ icon
-- Mark rest days with 😴
-- Show race days with 🏁
+### Journey 4: Sleep Optimization
+1. Open Sleep tab → review last night's score/stages
+2. Check 7-day sleep debt status
+3. Read sleep coach recommendations
+4. Adjust bedtime based on advice
+5. Track improvement over time
+
+### Journey 5: Training Load Management
+1. Open Training tab → review CTL/ATL/TSB chart
+2. Check training status badge (productive/overreaching/etc.)
+3. Monitor ACWR gauge — stay in sweet spot
+4. Review load focus distribution
+5. Adjust plan if overreaching detected
 
 ---
 
-## 5. Coach Chat Screen
+## 9. Charts Library (Recharts)
 
-> **Status: Planned — not yet implemented.** The chat router and chat page do not exist in the current codebase.
-
-### Layout
-
-```
-┌─────────────────────────────────┐
-│  ← Back        Coach Chat 🤖   │
-│                                 │
-│  ┌───────────────────────────┐  │
-│  │ Hi! I'm your coach. Ask  │  │
-│  │ me about your training,  │  │
-│  │ readiness, or plans.     │  │
-│  └───────────────────────────┘  │
-│                                 │
-│       ┌──────────────────────┐  │
-│       │ Why is my readiness  │  │
-│       │ lower today?         │  │
-│       └──────────────────────┘  │
-│                                 │
-│  ┌───────────────────────────┐  │
-│  │ Your readiness dropped   │  │
-│  │ from 78 → 54 today.      │  │
-│  │                          │  │
-│  │ Main factors:            │  │
-│  │ • Sleep: 5h 40m (vs 7h  │  │
-│  │   baseline) — ↓ 18 pts  │  │
-│  │ • HRV: 38ms (vs 48ms   │  │
-│  │   baseline) — ↓ 12 pts  │  │
-│  │                          │  │
-│  │ 💡 I've adjusted today's │  │
-│  │ workout to an easy run.  │  │
-│  └───────────────────────────┘  │
-│                                 │
-│  Quick actions:                 │
-│  [What should I do?]            │
-│  [Make it harder]               │
-│  [Race in N days]               │
-│                                 │
-│  ┌─────────────────────┐ [Send] │
-│  │ Type a message...   │        │
-│  └─────────────────────┘        │
-└─────────────────────────────────┘
-```
-
-### Quick Action Chips
-
-Pre‑built prompts for common intents:
-- "What should I do today?"
-- "Make today's workout harder/easier"
-- "How was my week?"
-- "I have a race coming up"
-
----
-
-## 6. Settings / Profile Screen
-
-- Edit profile (age, weight, height)
-- Manage sports & goals
-- Update weekly availability
-- Garmin connection status & re‑sync
-- Notification preferences
-- Data & privacy (export, delete)
-- About & support
-
----
-
-## 7. Navigation
-
-### Bottom Tab Bar (BottomNav component)
-
-| Tab | Icon | Route | Screen |
-|-----|------|-------|--------|
-| Home | 🏠 | `/` | Today / readiness + workout |
-| Trends | 📊 | `/trends` | History & charts |
-| Settings | ⚙️ | `/settings` | Profile & preferences |
-
-> **Note:** No Chat tab exists yet.
-
-### Key User Journeys
-
-1. **Morning check‑in:** Open app → see readiness → view workout → start training
-2. **Post‑workout:** Garmin syncs → strain updates → tomorrow adjusted
-3. **Curiosity (planned):** Open chat → "why low?" → understand factors → adjust plans
-4. **Race prep (planned):** Chat → "race in 14 days" → see taper plan → follow daily
+| Chart | Page | Type | Data Source |
+|-------|------|------|-------------|
+| Multi-metric overlay | Trends | Line (multi-series) | trends.getMultiMetric |
+| CTL/ATL/TSB | Training | Line + Area | trends.getCTLATLTSB |
+| ACWR gauge | Training | Gauge/radial | trends.getACWR |
+| Load focus | Training | Pie/Donut | analytics.getLoadFocus |
+| Sleep stages | Sleep | Stacked Bar | sleep.getDashboard |
+| Sleep debt | Sleep | Bar | sleep.getDebt |
+| Readiness history | Today | Sparkline | readiness.getHistory |

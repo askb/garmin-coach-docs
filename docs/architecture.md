@@ -1,132 +1,185 @@
-# Architecture & Tech Stack — GarminCoach
+# Architecture & Tech Stack — GarminCoach v2.0
 
-## 1. High‑Level Architecture
+## 1. High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLIENTS                               │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │ Mobile App   │  │ Web App      │  │ Garmin Webhooks   │  │
-│  │ (Expo/RN)    │  │ (Next.js)    │  │ (Push from Garmin)│  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  │
-│         │                 │                    │             │
-└─────────┼─────────────────┼────────────────────┼─────────────┘
-          │                 │                    │
-          ▼                 ▼                    ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     API GATEWAY / tRPC                        │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │                   Next.js API Routes                  │   │
-│  │                   (tRPC Router)                       │   │
-│  └──────────────────────────────────────────────────────┘   │
-└──────────┬──────────────┬──────────────┬────────────────────┘
-           │              │              │
-           ▼              ▼              ▼
-┌──────────────┐ ┌───────────────┐ ┌──────────────────┐
-│ Garmin       │ │ Readiness &   │ │ Coaching         │
-│ Ingestion    │ │ Strain Engine │ │ Service           │
-│ Service      │ │               │ │                  │
-│ - OAuth      │ │ - Score calc  │ │ - Weekly planner │
-│ - Webhook RX │ │ - Baselines   │ │ - Template lib   │
-│ - Backfill   │ │ - Anomalies   │ │ - Chat handler   │
-│ - Normalize  │ │ - Zones       │ │ - Modulation     │
-└──────┬───────┘ └───────┬───────┘ └────────┬─────────┘
-       │                 │                   │
-       ▼                 ▼                   ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      DATA LAYER                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ PostgreSQL   │  │ Redis        │  │ Object Storage   │  │
-│  │ (Primary DB) │  │ (Cache/Queue)│  │ (Garmin raw JSON)│  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           CLIENTS                                    │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │ Next.js 16 Web App (Tailwind + Recharts)                     │  │
+│  │ 5 tabs: Today · Trends · Training · Sleep · Settings         │  │
+│  │ + Onboarding · Workout Detail                                │  │
+│  └──────────────────────────┬────────────────────────────────────┘  │
+│                             │                                       │
+│  ┌──────────────────────────┴────────────────────────────────────┐  │
+│  │ Garmin Webhooks (Push from Garmin Connect)                    │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    tRPC v11 API LAYER (32+ endpoints)                │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │                    Next.js API Routes                          │ │
+│  │                    (tRPC Router — appRouter)                   │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                                                      │
+│  10 Routers:                                                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│  │analytics │ │  auth    │ │  garmin  │ │ journal  │ │   post   │ │
+│  │  (7)     │ │  (2)    │ │  (4)    │ │  (4)    │ │   (4)   │ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│  │ profile  │ │readiness │ │  sleep   │ │ workout  │ │  trends  │ │
+│  │  (4)     │ │  (4)    │ │  (3)    │ │  (4)    │ │   (6)   │ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
+└──────┬──────────────┬──────────────┬──────────────┬─────────────────┘
+       │              │              │              │
+       ▼              ▼              ▼              ▼
+┌────────────┐ ┌─────────────┐ ┌────────────┐ ┌──────────────────────┐
+│  Garmin    │ │   Engine    │ │  Coaching  │ │  Analytics           │
+│  Service   │ │ (131 tests) │ │  Service   │ │  Service             │
+│            │ │             │ │            │ │                      │
+│ · OAuth 1.0a│ · Readiness │ │ · 16 templ.│ │ · Trend regression   │
+│ · Webhooks │ │ · Strain   │ │ · Planner  │ │ · Correlations       │
+│ · Backfill │ │ · ACWR     │ │ · Modulate │ │ · Notable changes    │
+│ · Normalize│ │ · CTL/ATL  │ │ · Recovery │ │ · Running form       │
+│            │ │ · Baselines│ │ · Sleep    │ │ · Race predictions   │
+│            │ │ · Anomalies│ │   coach    │ │ · VO2max estimation  │
+│            │ │ · VO2max   │ │            │ │ · Training status    │
+└──────┬─────┘ └──────┬─────┘ └──────┬─────┘ └──────────┬───────────┘
+       │              │              │                   │
+       ▼              ▼              ▼                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DATA LAYER                                   │
+│  ┌──────────────────┐  ┌──────────────────┐                         │
+│  │ PostgreSQL 16    │  │ Redis 7          │                         │
+│  │ (Drizzle ORM)    │  │ (Cache / Queue)  │                         │
+│  │ 13 tables        │  │                  │                         │
+│  └──────────────────┘  └──────────────────┘                         │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 2. Tech Stack
 
-### 2.1 T3 Stack Foundation
+### 2.1 Core Stack
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| **Framework** | [create-t3-app](https://create.t3.gg/) | Full‑stack TypeScript, batteries included |
-| **Runtime** | Next.js 14+ (App Router) | SSR, API routes, edge functions |
-| **API** | tRPC v11 | End‑to‑end type safety, no codegen |
-| **ORM** | Drizzle ORM | Type‑safe, SQL‑like, great migrations |
-| **Auth** | Better-Auth | OAuth providers, session management, Expo support |
-| **Styling** | Tailwind CSS + shadcn/ui | Rapid UI development |
-| **Validation** | Zod | Runtime + compile‑time validation |
+| Layer | Technology | Version | Purpose |
+|-------|-----------|---------|---------|
+| **Monorepo** | Turborepo + pnpm | — | Parallel builds, shared packages |
+| **Framework** | Next.js | 16 | App Router, SSR, API routes |
+| **API** | tRPC | v11 | End-to-end type safety |
+| **ORM** | Drizzle ORM | — | Type-safe SQL, migrations (drizzle-kit) |
+| **Auth** | Better-Auth | — | Discord OAuth, session management |
+| **Styling** | Tailwind CSS | — | Utility-first CSS |
+| **Charts** | Recharts | — | Training load, trends, sleep visualizations |
+| **Validation** | Zod | — | Runtime + compile-time validation |
 
 ### 2.2 Infrastructure
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| **Database** | PostgreSQL 16 (Neon / Supabase) | Relational + JSONB for flexibility |
-| **Cache/Queue** | Redis (Upstash) | Serverless‑friendly, rate limiting |
-| **Mobile** | Expo + React Native | Share logic with web, native performance |
-| **Hosting** | Vercel (web) / Fly.io (workers) | Edge‑first, auto‑scaling |
-| **Monitoring** | Sentry + PostHog | Error tracking + product analytics |
-| **CI/CD** | GitHub Actions | Automated testing, preview deploys |
-
-### 2.3 AI Layer
-
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| **LLM** | OpenAI GPT‑4o‑mini | Cost‑effective for structured coaching responses |
-| **SDK** | Vercel AI SDK | Streaming, structured output, tool calling |
-| **Prompt mgmt** | In‑code templates | Simple, version‑controlled |
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Database** | PostgreSQL 16 | Primary data store (13 tables) |
+| **Cache** | Redis 7 | Caching, rate limiting |
+| **Containers** | Docker Compose | Local dev (Postgres + Redis) |
+| **CI/CD** | GitHub Actions | Lint + typecheck + test + build |
+| **Runtime** | Node.js 22+ | Server runtime |
+| **Package manager** | pnpm 10+ | Fast, disk-efficient |
 
 ---
 
-## 3. Service Architecture
+## 3. Package Architecture
 
-### 3.1 Garmin Ingestion Service
+### 3.1 Monorepo Structure
 
 ```
-garmin-ingestion/
-├── oauth/           # OAuth 1.0a flow for Garmin Connect
-├── webhooks/        # Receive push notifications from Garmin
-├── backfill/        # Pull historical data (30 days)
-├── normalize/       # Map Garmin JSON → our data model
-└── sync/            # Incremental daily sync job
+garmin-coach/
+├── apps/
+│   └── nextjs/                  # Next.js 16 frontend + API routes
+│       ├── src/app/             # App Router pages
+│       │   ├── (app)/           # Authenticated pages
+│       │   │   ├── page.tsx     # Today / Home
+│       │   │   ├── trends/      # Advanced Trends
+│       │   │   ├── training/    # Training Load
+│       │   │   ├── sleep/       # Sleep Dashboard
+│       │   │   ├── settings/    # Settings
+│       │   │   └── workout/     # Workout Detail
+│       │   └── onboarding/      # 3-step setup flow
+│       └── e2e/                 # Playwright E2E tests (20 tests)
+├── packages/
+│   ├── api/                     # tRPC routers (10 routers, 32+ endpoints)
+│   │   └── src/
+│   │       ├── root.ts          # appRouter definition
+│   │       └── router/
+│   │           ├── analytics.ts # 7 endpoints
+│   │           ├── auth.ts      # 2 endpoints
+│   │           ├── garmin.ts    # 4 endpoints
+│   │           ├── journal.ts   # 4 endpoints
+│   │           ├── post.ts      # 4 endpoints
+│   │           ├── profile.ts   # 4 endpoints
+│   │           ├── readiness.ts # 4 endpoints
+│   │           ├── sleep.ts     # 3 endpoints
+│   │           ├── workout.ts   # 4 endpoints
+│   │           └── trends.ts    # 6 endpoints
+│   ├── auth/                    # Better-Auth configuration
+│   ├── db/                      # Drizzle schema + client (13 tables)
+│   │   └── src/
+│   │       ├── schema.ts        # All table definitions
+│   │       ├── auth-schema.ts   # Better-Auth managed tables
+│   │       └── client.ts        # Database client
+│   ├── engine/                  # Training engine (131 tests)
+│   │   └── src/
+│   │       ├── readiness/       # Z-score readiness scoring
+│   │       ├── strain/          # TRIMP, strain, ACWR, CTL/ATL/TSB
+│   │       ├── baselines/       # Rolling EMA, population defaults
+│   │       ├── anomalies/       # HRV drop, RHR spike, sleep, overreaching
+│   │       ├── vo2max/          # ACSM, Uth, Cooper estimation
+│   │       ├── racePrediction/  # Riegel + VDOT predictions
+│   │       ├── trainingStatus/  # 6-state classification
+│   │       ├── recovery/        # Recovery time estimation
+│   │       ├── sleep/           # Sleep coach, debt tracking
+│   │       ├── trends/          # Regression, rolling averages
+│   │       ├── correlations/    # Pearson r with p-values
+│   │       ├── runningForm/     # GCT, VO, stride, cadence, balance
+│   │       ├── coaching/        # Templates, planner, modulation
+│   │       │   └── templates/   # 16 workout templates
+│   │       ├── types.ts         # Shared interfaces
+│   │       └── index.ts         # Public API exports
+│   ├── ui/                      # Shared UI components
+│   └── validators/              # Zod schemas (shared validation)
+├── tooling/
+│   ├── eslint/                  # Shared ESLint config
+│   ├── prettier/                # Shared Prettier config
+│   └── typescript/              # Shared tsconfig
+├── docker-compose.yml           # Postgres 16 + Redis 7
+├── turbo.json
+└── package.json
 ```
 
-**Garmin API Integration:**
-- OAuth 1.0a consumer (Garmin still uses OAuth 1.0a)
-- Webhook receiver for real‑time push data
-- Pull‑based backfill for historical data
-- Rate limiting: respect Garmin API limits (60 req/min)
-
-### 3.2 Readiness Engine
+### 3.2 Engine Module Architecture
 
 ```
 packages/engine/src/
-├── readiness/
-│   └── index.ts          # All component scorers + calculateReadiness()
-├── strain/
-│   └── index.ts          # TRIMP, strain score, ACWR, consecutive hard days
-├── baselines/
-│   └── index.ts          # EMA, population defaults, personal baselines
-├── anomalies/
-│   └── index.ts          # HRV crash, RHR spike, sleep deficit, overreaching
-├── coaching/
-│   ├── index.ts          # Weekly planner, modulation, daily workout generation
-│   └── templates/
-│       └── index.ts      # 20+ workout templates (running, cycling, strength)
-├── types.ts              # Shared interfaces
-└── index.ts              # Public API exports
-```
-
-### 3.3 Coaching Service
-
-```
-packages/engine/src/coaching/
-├── index.ts              # selectWeeklyTemplate(), modulateWorkout(),
-│                         # generateDailyWorkout(), adjustDifficulty()
-└── templates/
-    └── index.ts          # WorkoutTemplate interface + all templates
-                          # (runningTemplates, cyclingTemplates, strengthTemplates)
+├── readiness/          # calculateReadiness() → score, zone, components, confidence
+├── strain/             # calculateTRIMP(), calculateStrain(), calculateACWR(),
+│                       # calculateCTL(), calculateATL(), calculateTSB()
+├── baselines/          # calculateBaseline(), getPopulationDefaults(), blendBaselines()
+├── anomalies/          # detectAnomalies() → HRV drop, RHR spike, sleep, overreaching
+├── vo2max/             # estimateVO2max() via ACSM, Uth, Cooper
+├── racePrediction/     # predictRaceTime() via Riegel + VDOT
+├── trainingStatus/     # classifyTrainingStatus() → 6 states
+├── recovery/           # estimateRecoveryTime() with modifiers
+├── sleep/              # calculateSleepNeed(), trackSleepDebt(), recommendBedtime()
+├── trends/             # analyzeTrend() → regression, rolling avg, notable changes
+├── correlations/       # calculateCorrelation() → Pearson r + p-value
+├── runningForm/        # analyzeRunningForm() → GCT, VO, stride, cadence, balance
+├── coaching/           # selectWeeklyTemplate(), modulateWorkout(), generateDailyWorkout()
+│   └── templates/      # 16 workout templates (running, cycling, strength)
+├── types.ts            # Shared TypeScript interfaces
+└── index.ts            # Public API surface
 ```
 
 ---
@@ -136,184 +189,202 @@ packages/engine/src/coaching/
 ### 4.1 Router Structure
 
 ```typescript
-// src/server/api/root.ts
+// packages/api/src/root.ts
 export const appRouter = createTRPCRouter({
-  auth: authRouter,
-  garmin: garminRouter,
-  post: postRouter,
-  profile: profileRouter,
-  readiness: readinessRouter,
-  workout: workoutRouter,
-  trends: trendsRouter,
+  analytics: analyticsRouter,   // 7 endpoints
+  auth:      authRouter,        // 2 endpoints
+  garmin:    garminRouter,      // 4 endpoints
+  journal:   journalRouter,     // 4 endpoints
+  post:      postRouter,        // 4 endpoints
+  profile:   profileRouter,     // 4 endpoints
+  readiness: readinessRouter,   // 4 endpoints
+  sleep:     sleepRouter,       // 3 endpoints
+  workout:   workoutRouter,     // 4 endpoints
+  trends:    trendsRouter,      // 6 endpoints
 });
 ```
 
-### 4.2 Key Procedures
+### 4.2 Endpoint Catalog
 
 ```typescript
-// garmin router
-garmin.getConnectionStatus()       // → { connected, lastSync }
-garmin.initiateOAuth()             // → { authUrl }
-garmin.handleCallback()            // ← code → store tokens
-garmin.triggerBackfill({ days })   // → { metricsInserted, activitiesInserted }
+// analytics router (7)
+analytics.getTrendAnalysis({ metric, days })        // → TrendResult (regression + direction)
+analytics.getCorrelations({ period })               // → CorrelationResult[] (6 pairs)
+analytics.getNotableChanges({ days })               // → NotableChange[]
+analytics.getRunningForm({ activityId })            // → RunningFormAnalysis
+analytics.getTrainingStatus()                       // → TrainingStatus classification
+analytics.getVO2maxHistory({ days })                // → VO2maxEstimate[]
+analytics.getRacePredictions({ inputRace })          // → RacePrediction[] (5K/10K/half/marathon)
 
-// readiness router
-readiness.getToday()               // → { score, zone, explanation, factors }
-readiness.getHistory({ days })     // → ReadinessScore[]
-readiness.getComponents({ date })  // → { sleep, hrv, rhr, load, stress }
-readiness.getAnomalies()           // → AnomalyAlert[]
+// auth router (2)
+auth.getSession()                                    // → Session | null
+auth.signOut()                                       // → void
 
-// workout router
-workout.getToday()                 // → { workout }
-workout.adjustDifficulty({ direction: 'harder' | 'easier' })  // → { adjustedWorkout }
-workout.getWeekPlan()              // → DailyWorkout[]
-workout.getDetail({ id })         // → { structure, targets, explanation }
+// garmin router (4)
+garmin.getConnectionStatus()                         // → { connected, lastSync }
+garmin.initiateOAuth()                               // → { authUrl }
+garmin.handleCallback({ code })                      // → store tokens
+garmin.triggerBackfill({ days })                     // → { metricsInserted, activitiesInserted }
 
-// chat router — Planned (not yet implemented)
-// chat.sendMessage({ content })   // → { response, context }
-// chat.getHistory({ limit })      // → ChatMessage[]
+// journal router (4)
+journal.list({ days })                               // → JournalEntry[]
+journal.create({ content, mood, tags })              // → JournalEntry
+journal.update({ id, content, mood, tags })          // → JournalEntry
+journal.delete({ id })                               // → void
 
-// post router (legacy)
-post.all()                         // → Post[]
-post.byId({ id })                 // → Post
-post.create({ title, content })   // → Post
-post.delete({ id })               // → void
+// post router (4)
+post.all()                                           // → Post[]
+post.byId({ id })                                    // → Post
+post.create({ title, content })                      // → Post
+post.delete({ id })                                  // → void
 
-// trends router
-trends.getSummary({ period })      // → { readiness, strain, sleep, hrv }
-trends.getChart({ metric, days })  // → DataPoint[]
+// profile router (4)
+profile.get()                                        // → Profile
+profile.upsert({ ... })                              // → Profile
+profile.update({ ... })                              // → Profile
+profile.getBaselines()                               // → Baselines
+
+// readiness router (4)
+readiness.getToday()                                 // → { score, zone, explanation, components, confidence }
+readiness.getHistory({ days })                       // → ReadinessScore[]
+readiness.getComponents({ date })                    // → { sleep, hrv, rhr, load, stress }
+readiness.getAnomalies()                             // → AnomalyAlert[]
+
+// sleep router (3)
+sleep.getDashboard({ days })                         // → { scores, stages, debt, efficiency }
+sleep.getDebt()                                      // → { current, trend, recommendation }
+sleep.getCoachAdvice()                               // → { bedtime, sleepNeed, tips }
+
+// workout router (4)
+workout.getToday()                                   // → DailyWorkout
+workout.adjustDifficulty({ direction })              // → WorkoutRecommendation
+workout.getWeekPlan()                                // → DailyWorkout[]
+workout.getDetail({ id })                            // → { structure, targets, explanation }
+
+// trends router (6)
+trends.getSummary({ period })                        // → { readiness, strain, sleep, hrv, rhr, steps }
+trends.getChart({ metric, days })                    // → DataPoint[]
+trends.getMultiMetric({ metrics, days })             // → { [metric]: DataPoint[] }
+trends.getComparison({ period1, period2 })           // → { deltas, significance }
+trends.getCTLATLTSB({ days })                        // → { ctl[], atl[], tsb[] }
+trends.getACWR({ days })                             // → { values[], zone }
 ```
 
 ---
 
-## 5. Background Jobs
+## 5. Data Flow
 
-| Job | Trigger | Frequency | Tool |
-|-----|---------|-----------|------|
-| Garmin sync | Webhook + cron | Real‑time + daily 4 AM | Vercel Cron / Inngest |
-| Readiness compute | After sync completes | Daily | Event‑driven |
-| Weekly plan generation | Sunday night or on demand | Weekly | Cron |
-| Daily modulation | After readiness computed | Daily | Event‑driven |
-| Baseline recalculation | After new data | Daily | Event‑driven |
-| Anomaly detection | After readiness computed | Daily | Event‑driven |
+```
+1. User syncs Garmin watch → Garmin Connect cloud
+2. Garmin Connect → Webhook POST → /api/garmin/webhook
+3. Webhook handler:
+   a. Verify signature
+   b. Parse payload type (dailies, activities, sleep, stress)
+   c. Normalize Garmin JSON → DailyMetric / Activity schema
+   d. Upsert into PostgreSQL (idempotent on userId + date)
+4. Engine pipeline triggers:
+   a. Recalculate baselines (14-day rolling EMA)
+   b. Compute readiness score (6 components → weighted composite)
+   c. Detect anomalies (HRV, RHR, sleep, overreaching)
+   d. Update training status classification
+   e. Calculate CTL/ATL/TSB and ACWR
+   f. Estimate recovery time
+5. Coaching pipeline:
+   a. Generate/modulate today's workout based on readiness zone
+   b. Update weekly plan if needed
+6. Frontend fetches via tRPC:
+   a. Today: readiness + workout + quick stats
+   b. Trends: multi-metric charts + correlations
+   c. Training: CTL/ATL/TSB + ACWR + load focus
+   d. Sleep: stages + debt + coach advice
+7. User trains → Garmin records → cycle repeats
+```
 
-### Job Queue
+---
+
+## 6. Security & Privacy
+
+### 6.1 Authentication
+
+- Better-Auth with Discord OAuth provider
+- Database-backed sessions with httpOnly cookies
+- tRPC middleware validates session on every protected procedure
+- Garmin OAuth 1.0a tokens encrypted at rest
+
+### 6.2 Data Protection
+
+- HTTPS everywhere (TLS 1.3)
+- Database connections via SSL
+- Row-level security: users access only their own data
+- Input validation on all mutations (Zod schemas)
+- Rate limiting on public endpoints
+
+### 6.3 Privacy
+
+- Explicit consent before Garmin connection
+- Transparent scoring: users see exactly how readiness is computed
+- Data export capability (GDPR: right to portability)
+- Account deletion removes all data (GDPR: right to erasure)
+- No data sold or shared with third parties
+
+---
+
+## 7. Background Jobs
+
+| Job | Trigger | Frequency |
+|-----|---------|-----------|
+| Garmin data sync | Webhook push | Real-time |
+| Readiness computation | After sync | On data arrival |
+| Baseline recalculation | After new data | Daily |
+| Anomaly detection | After readiness computed | Daily |
+| Weekly plan generation | Sunday night or on demand | Weekly |
+| Daily workout modulation | After readiness computed | Daily |
+| CTL/ATL/TSB update | After activity sync | On data arrival |
+
+### Event Pipeline
 
 ```
 Garmin webhook received
-  → Normalize & store data
+  → Normalize & upsert data
+  → Recalculate baselines
   → Compute readiness score
+  → Detect anomalies
+  → Update training status
   → Modulate today's workout
-  → Send push notification (if significant change)
 ```
-
----
-
-## 6. Data Flow
-
-```
-1. User syncs Garmin watch → Garmin Connect
-2. Garmin Connect → Webhook → Our ingestion service
-3. Ingestion service normalizes → PostgreSQL (daily_aggregates, activities)
-4. Readiness engine reads data → Computes score → Stores readiness_scores
-5. Coaching service reads readiness + profile → Generates/adjusts workout
-6. Client app fetches today's readiness + workout via tRPC
-7. User sees score + workout recommendation
-8. User trains → Garmin records → Back to step 1
-```
-
----
-
-## 7. Security & Privacy
-
-### 7.1 Data Protection
-
-- All Garmin tokens encrypted at rest (AES‑256)
-- HTTPS everywhere (TLS 1.3)
-- Database connections via SSL
-- Row‑level security: users can only access their own data
-
-### 7.2 Auth Flow
-
-```
-1. User signs up (Discord OAuth via Better-Auth)
-2. User connects Garmin (OAuth 1.0a)
-3. Garmin tokens stored encrypted in DB
-4. Session managed via Better-Auth (database sessions + cookies)
-5. tRPC procedures validate session on every request
-```
-
-### 7.3 Privacy
-
-- Clear consent screen before Garmin connection
-- Data export (GDPR: right to portability)
-- Account deletion removes all data (GDPR: right to erasure)
-- No data sold or shared with third parties
-- Transparent scoring: user can see exactly how readiness is computed
 
 ---
 
 ## 8. Deployment
 
-### 8.1 Environments
+### 8.1 Development
 
-| Environment | Purpose | URL |
-|-------------|---------|-----|
-| Development | Local dev | localhost:3000 |
-| Preview | PR previews | pr‑{n}.vercel.app |
-| Staging | Pre‑production | staging.garmincoach.app |
-| Production | Live | garmincoach.app |
-
-### 8.2 Infrastructure as Code
-
-```
-infra/
-├── docker-compose.yml    # Local dev (Postgres + Redis)
-├── vercel.json           # Vercel deployment config
-├── drizzle.config.ts     # Database migrations
-└── github/
-    └── workflows/
-        ├── ci.yml        # Lint + test + type check
-        ├── preview.yml   # Deploy PR previews
-        └── deploy.yml    # Production deployment
+```bash
+docker compose up -d          # PostgreSQL 16 + Redis 7
+pnpm install
+pnpm db:push                  # Apply Drizzle schema
+pnpm dev                      # Turbo watch — all packages
 ```
 
----
+### 8.2 CI/CD (GitHub Actions)
 
-## 9. Monitoring & Observability
-
-| Concern | Tool | What |
-|---------|------|------|
-| Errors | Sentry | Unhandled exceptions, API errors |
-| Analytics | PostHog | User events, funnel analysis |
-| Uptime | Vercel / BetterStack | Health checks, alerts |
-| Logs | Vercel Logs / Axiom | Structured JSON logs |
-| Performance | Vercel Analytics | Core Web Vitals, API latency |
-
----
-
-## 10. Mobile Architecture (Expo)
-
-```
-mobile/
-├── app/                  # Expo Router (file‑based)
-│   ├── (tabs)/
-│   │   ├── index.tsx     # Home / Today
-│   │   ├── trends.tsx    # History
-│   │   ├── chat.tsx      # Coach chat
-│   │   └── settings.tsx  # Profile
-│   ├── workout/[id].tsx  # Workout detail
-│   └── onboarding/       # Setup flow
-├── components/           # Shared UI components
-├── lib/
-│   ├── api.ts           # tRPC client
-│   ├── storage.ts       # Offline cache (MMKV)
-│   └── notifications.ts # Push notifications
-└── assets/
+```yaml
+on: [push, pull_request]
+jobs:
+  check:
+    steps:
+      - pnpm install --frozen-lockfile
+      - pnpm lint
+      - pnpm type-check        # 16/16 tasks
+      - pnpm test               # 131 engine + 10 integration
+      - pnpm test:e2e           # 20 Playwright tests
+      - pnpm build
 ```
 
-### Offline Support
+### 8.3 Environments
 
-- Cache last 3 days of readiness + workouts in MMKV
-- Show cached data when offline with "Last updated" indicator
-- Queue chat messages for send when back online
+| Environment | URL | Purpose |
+|-------------|-----|---------|
+| Development | localhost:3000 | Local dev |
+| Preview | pr-{n}.vercel.app | PR previews |
+| Production | garmincoach.app | Live |

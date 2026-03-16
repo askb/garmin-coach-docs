@@ -1,6 +1,6 @@
 # Development Environment — Fedora 41 Setup Guide
 
-Complete guide for developing the GarminCoach MVP on Fedora Linux 41.
+Complete guide for developing GarminCoach v2.0 on Fedora Linux 41.
 
 ---
 
@@ -15,8 +15,9 @@ works natively on Fedora 41 with no WSL or VM needed.
 |-----------|-----------|-------------|
 | Node.js 20–22 LTS | ✅ Excellent | `sudo dnf install nodejs` or use volta/fnm |
 | pnpm / npm / yarn | ✅ | `npm install -g pnpm` |
-| Next.js 15 / tRPC | ✅ | Pure JS/TS — no issues |
-| Prisma + PostgreSQL | ✅ | `sudo dnf install postgresql-server` or Docker |
+| Next.js 16 / tRPC v11 | ✅ | Pure JS/TS — no issues |
+| Drizzle ORM + PostgreSQL | ✅ | `sudo dnf install postgresql-server` or Docker |
+| Recharts | ✅ | Pure JS/TS — no issues |
 | Turborepo | ✅ | npm package |
 | Vitest / Playwright | ✅ | `npx playwright install-deps` for system libs |
 | Git | ✅ | Pre‑installed or `sudo dnf install git` |
@@ -72,7 +73,7 @@ flatpak install flathub com.visualstudio.code
 - GitHub Copilot + Copilot Chat
 - GitLens
 - Tailwind CSS IntelliSense
-- Prisma
+- Drizzle ORM (drizzle-kit)
 - ESLint + Prettier
 
 ---
@@ -188,11 +189,11 @@ Requires an active GitHub Copilot subscription.
 ### 5.2 — Useful Commands for This Project
 
 ```bash
-# Generate Prisma schema from description
-copilot suggest "Prisma schema for user profile with age, weight, sports array"
+# Generate Drizzle schema from description
+copilot suggest "Drizzle ORM schema for user profile with age, weight, sports array"
 
 # Debug build errors
-copilot explain "error: Cannot find module '@prisma/client'"
+copilot explain "error: Cannot find module 'drizzle-orm'"
 
 # Generate test cases
 copilot suggest "vitest tests for readiness score calculation with HRV and sleep inputs"
@@ -267,7 +268,7 @@ docker compose up -d    # Postgres + Redis
 
 # Setup database
 cp .env.example .env    # Edit with your DATABASE_URL
-pnpm db:push            # Apply Prisma schema
+pnpm db:push            # Apply Drizzle schema
 pnpm db:seed            # Load mock data
 
 # Start development
@@ -302,5 +303,5 @@ Fedora 41 provides:
 - Full Android local development and testing
 - Zero barriers to EAS cloud builds & Vercel deploys
 
-The complete MVP (backend, engine, website, Android app, tests, CI/CD) can be
+The complete GarminCoach v2.0 platform (backend, engine, website, tests, CI/CD) can be
 developed entirely on Fedora 41.

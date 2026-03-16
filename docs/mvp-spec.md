@@ -1,179 +1,299 @@
-# MVP Specification — GarminCoach
+# Product Specification v2.0 — GarminCoach Sport Scientist
 
-## 1. Core User Outcomes (MVP Scope)
+## 1. Product Vision
 
-Your MVP should reliably do three things:
+GarminCoach v2.0 is an evidence-based sport scientist platform that transforms
+Garmin wearable data into actionable training intelligence. Every algorithm cites
+peer-reviewed research. The system serves athletes from beginner to elite across
+running, cycling, strength, swimming, and team sports.
 
-- Turn Garmin data into a simple daily **readiness** score (0–100) and clear color zone.
-- Translate readiness into concrete workout targets: duration, intensity, and focus
-  (e.g., "easy endurance run 40–50 minutes, HR Zone 2–3").
-- Adapt to sport and goal (e.g., "general fitness", "5K PB", "hypertrophy",
-  "triathlon base") with minimal config from the user.
+### Core Capabilities
 
-Everything else (social, periodization views, advanced AI chat) is "nice later",
-not MVP‑critical.
-
----
-
-## 2. Data Layer: What You Pull From Garmin
-
-Use the [Garmin Health & Activity APIs](https://developer.garmin.com/gc-developer-program/health-api/)
-as your backbone.
-
-### 2.1 Data Sources
-
-| Source | Fields |
-|--------|--------|
-| Daily health summaries | steps, calories, distance, stress, sleep duration/stages, resting HR, HRV, Body Battery |
-| Activity records | sport type, start/end, distance, duration, pace, HR traces, intensity, VO2max |
-| Existing Garmin metrics | Training Load, Recovery Time, Training Readiness (device‑dependent) |
-
-**MVP requirement:** daily sync job that ingests last 7–30 days, then incremental
-updates when the user syncs to Garmin Connect.
-
-### 2.2 Minimal Data Model (per user)
-
-- **Profile:** age, sex, mass, height, timezone, experience level, primary sports, goals.
-- **Daily aggregates:** date, sleep score, total sleep, HRV, resting HR, max HR,
-  stress score, Body Battery, steps, calories, Garmin Training Readiness if present.
-- **Activities:** sport_type, distance, duration, avg HR, max HR, TRIMP/strain score
-  (computed), Garmin training load if present.
-
-See [Data Model](data-model.md) for full schema.
+1. **Readiness scoring** — Z-score based daily readiness (0–100) with 6 components,
+   confidence levels, and 5 zones (Prime/Good/Moderate/Low/Poor)
+2. **Training load management** — TRIMP/strain scoring, ACWR monitoring, CTL/ATL/TSB
+   fitness-fatigue modeling, load focus classification
+3. **Coaching** — 16 workout templates, weekly planning, readiness-based modulation,
+   difficulty adjustment
+4. **Analytics** — Trend analysis, correlations, notable change detection, running
+   form analysis
+5. **Performance estimation** — VO2max (3 methods), race prediction (5K–marathon),
+   training status classification
+6. **Recovery intelligence** — Recovery time estimation, sleep coaching, anomaly detection
 
 ---
 
-## 3. Readiness & Strain Engine
+## 2. Audience Levels
 
-See [Readiness Engine](readiness-engine.md) for algorithm details.
+| Level | Description | System Behavior |
+|-------|-------------|-----------------|
+| **Beginner** | < 1 year training, learning fundamentals | Conservative load ramps, simpler workouts, more recovery |
+| **Intermediate** | 1–3 years, established base | Standard progressions, full template library |
+| **Advanced** | 3+ years, performance-oriented | Higher load tolerance, advanced periodization, race-specific |
+| **Elite** | Competitive athlete | Full feature set, aggressive optimization, peaking protocols |
 
-### 3.1 Daily Readiness Score (0–100)
+---
 
-Inputs (weighted):
+## 3. Data Layer
 
-| Factor | Weight | Source |
-|--------|--------|--------|
-| Sleep quantity vs individual baseline | 20% | Garmin sleep |
-| Sleep quality (efficiency, deep/REM) | 15% | Garmin sleep score |
-| HRV vs personal 30‑day rolling baseline | 25% | Garmin HRV |
-| Resting HR vs baseline | 10% | Garmin daily summary |
-| Recent training load (last 3–7 days) | 20% | Computed strain |
-| Daytime stress and Body Battery | 10% | Garmin stress |
+### 3.1 Data Sources (Garmin Health & Activity APIs)
 
-### Readiness Zones
+| Source | Fields Ingested |
+|--------|----------------|
+| Daily health summaries | Steps, calories, distance, stress, sleep duration/stages, resting HR, HRV, Body Battery |
+| Activity records | Sport type, start/end, distance, duration, pace, HR traces, intensity, VO2max, running dynamics |
+| Existing Garmin metrics | Training Load, Recovery Time, Training Readiness (device-dependent) |
+
+### 3.2 Schema (13 Tables — Drizzle + PostgreSQL)
+
+| Table | Key Fields | Purpose |
+|-------|-----------|---------|
+| Profile | age, sex, mass, height, experience, sports, goals, baselines | User configuration |
+| DailyMetric | 30+ fields: sleep stages, HRV, RHR, stress, Body Battery, steps | Daily health data |
+| Activity | 25+ fields: sport, duration, distance, HR, pace, TRIMP, strain, VO2max, running dynamics | Activity records |
+| ReadinessScore | score, zone, 6 component scores, confidence, explanation | Daily readiness |
+| WeeklyPlan | sport, goal, template, week structure | Weekly training plan |
+| DailyWorkout | type, title, structure, targets, strain range, status | Individual workouts |
+| ChatMessage | role, content, context | AI coach conversations |
+| VO2maxEstimate | method, value, confidence, date | VO2max tracking |
+| TrainingStatus | status, metrics snapshot, date | Training status history |
+| JournalEntry | content, mood, tags, date | Athlete journal |
+| CorrelationResult | metric pair, r-value, p-value, period | Statistical correlations |
+| RacePrediction | distance, predicted time, method, input race | Race time predictions |
+| WorkoutTimeSeries | timestamp, HR, pace, cadence, power | Activity time-series data |
+
+See [Data Model](data-model.md) for complete field-level documentation.
+
+---
+
+## 4. Engine Modules (packages/engine — 131 tests)
+
+### 4.1 Readiness Scoring
+
+**Method:** Z-score based composite scoring (Buchheit 2014)
+
+| Component | Weight | Source | Scoring Method |
+|-----------|--------|--------|---------------|
+| Sleep quantity | 20% | Garmin sleep | Ratio vs personal baseline |
+| Sleep quality | 15% | Garmin sleep score / deep+REM ratio | Quality index |
+| HRV vs baseline | 25% | Garmin HRV | Z-score vs 14-day rolling EMA |
+| Resting HR vs baseline | 10% | Garmin daily summary | Deviation from 14-day EMA |
+| Training load (ACWR) | 20% | Computed strain | ACWR position in sweet spot |
+| Stress | 10% | Garmin stress + Body Battery | Inverted composite |
+
+**Zones:**
 
 | Score | Zone | Guidance |
 |-------|------|----------|
-| 80–100 | **Prime** | High‑intensity or long workouts recommended |
-| 60–79 | **High/Good** | Normal training; optional intensity |
+| 80–100 | **Prime** | High-intensity or long workouts recommended |
+| 60–79 | **Good** | Normal training; optional intensity push |
 | 40–59 | **Moderate** | Standard or slightly reduced session |
-| 20–39 | **Low/Strained** | Short/easy or technique work |
-| 0–19 | **Poor** | Rest or active recovery only |
+| 20–39 | **Low** | Easy/technique work only |
+| 0–19 | **Poor** | Rest or active recovery |
 
-### 3.2 Daily Strain Target
+**Confidence levels:** Based on data completeness and baseline maturity.
 
-- Use readiness, historical load, and upcoming events to set a target strain band.
-- Convert strain band into sport‑specific prescriptions:
-  time × HR zone / RPE × (optional) pace or power.
+### 4.2 Strain & TRIMP
 
-**Example (Prime day, runner, 5K focus):**
+**Banister TRIMP (1991):**
+```
+TRIMP = D × ΔHR_ratio × e^(k × ΔHR_ratio)
+  k = 1.92 (male), 1.67 (female)
+```
 
-> Target strain: 14–16 (hard interval day). Run 10–15 min easy warm‑up, then
-> 6 × 3 min at 5K pace with 2 min easy jog, cool down to total 45–55 min.
+**Strain scoring:** 0–21 scale mapped from TRIMP via exponential saturation curve.
+
+### 4.3 ACWR (Acute:Chronic Workload Ratio)
+
+- **Rolling average:** 7d acute / 28d chronic (Hulin 2016)
+- **EWMA variant:** Exponentially weighted, λ_acute = 0.25, λ_chronic = 0.069 (Williams 2017)
+- **Risk zones:** < 0.8 (under-prepared), 0.8–1.3 (sweet spot), 1.3–1.5 (caution), > 1.5 (danger)
+
+### 4.4 CTL/ATL/TSB (Fitness-Fatigue Model)
+
+- **CTL** (Chronic Training Load): 42-day EMA — represents fitness
+- **ATL** (Acute Training Load): 7-day EMA — represents fatigue
+- **TSB** (Training Stress Balance): CTL − ATL — represents form/freshness
+- **Ramp rate tracking:** Monitors CTL change rate for overload prevention
+
+### 4.5 Load Focus Classification
+
+Classifies each session and rolling load as:
+- **Aerobic** — Predominantly Zone 1–2 work
+- **Anaerobic** — High-intensity Zone 4–5 work
+- **Mixed** — Balanced distribution across zones
+
+### 4.6 Baselines
+
+- **Method:** 14-day rolling EMA with SD tracking
+- **Z-score infrastructure:** Individual deviations from personal baselines
+- **Cold start:** Age-adjusted population defaults (Shaffer & Ginsberg 2017) until personal data accumulates
+- **Blend:** Weighted transition from population to personal baselines over 14–30 days
+
+### 4.7 Anomaly Detection
+
+| Anomaly | Detection Method | Threshold |
+|---------|-----------------|-----------|
+| HRV drop | Z-score < −1.5 for 2+ days | Warning (2d) / Critical (3d+) |
+| RHR spike | > 5 bpm above baseline for 2+ days | Warning (2d) / Critical (3d+) |
+| Sleep disruption | < 6h for 3+ consecutive nights | Critical |
+| Overreaching | ACWR > 1.5 + declining HRV | Critical |
+
+### 4.8 VO2max Estimation (3 Methods)
+
+| Method | Input Required | Citation |
+|--------|---------------|----------|
+| ACSM running equation | Pace + HR data | ACSM 2021 |
+| Uth ratio | HRmax + HRrest only | Uth et al. 2004 |
+| Cooper test | 12-min run distance | Cooper 1968 |
+
+### 4.9 Race Prediction
+
+- **Riegel formula:** T₂ = T₁ × (D₂/D₁)^1.06
+- **VDOT-based:** Daniels' tables for equivalent performances
+- **Distances:** 5K, 10K, half marathon, marathon
+
+### 4.10 Training Status Classification
+
+| Status | Criteria | Description |
+|--------|----------|-------------|
+| **Productive** | VO2max ↑, ACWR 0.8–1.3, HRV stable/↑ | Fitness improving |
+| **Maintaining** | VO2max stable, ACWR 0.8–1.3 | Holding fitness |
+| **Detraining** | VO2max ↓, ACWR < 0.6 | Insufficient stimulus |
+| **Overreaching** | VO2max ↓ despite load, ACWR > 1.5, HRV ↓ | Maladaptive response |
+| **Peaking** | ACWR 0.6–0.9, HRV ↑ | Intentional taper |
+| **Recovery** | ACWR < 0.8, HRV improving | Post-block recovery |
+
+### 4.11 Recovery Time Estimation
+
+Based on session type with modifiers for:
+- Current strain level
+- Readiness score
+- Age (> 40: 1.1–1.2×, > 55: 1.2–1.4×)
+- Sleep debt
+- Training age
+
+> Citation: Hausswirth & Mujika 2013
+
+### 4.12 Sleep Coach
+
+- **Sleep need calculation:** Age-adjusted, athlete-adjusted (+1h), strain-adjusted
+- **Sleep debt tracking:** Rolling 7-day cumulative deficit
+- **Bedtime recommendations:** Based on wake time, sleep need, and sleep onset latency
+
+### 4.13 Trend Analysis
+
+- **Linear regression:** Direction (improving/declining/stable) with significance testing
+- **Rolling averages:** 7-day and 28-day smoothed trends
+- **Notable change detection:** Flags significant deviations from recent patterns
+
+### 4.14 Correlations
+
+Pearson r with p-values for 6 standard metric pairs:
+1. Sleep → Readiness
+2. HRV → Readiness
+3. Training load → Readiness
+4. Sleep → HRV
+5. Stress → Readiness
+6. RHR → Readiness
+
+### 4.15 Running Form Analysis
+
+| Metric | Elite Benchmark | Analysis |
+|--------|----------------|----------|
+| Ground contact time (GCT) | 160–200 ms | Efficiency indicator |
+| Vertical oscillation | 4–6 cm | Energy waste detection |
+| Stride length | Self-selected ± 3% | Overstriding detection |
+| Cadence | 170–185 spm | Turnover optimization |
+| GCT balance | 50/50 ± 2% | Asymmetry detection |
+
+### 4.16 Coaching Engine
+
+- **16 workout templates** across running, cycling, and strength
+- **Weekly planner:** Sport × goal × days/week template selection
+- **Readiness-based modulation:** Prime (+5%), Good (as-is), Moderate (−10%), Low (swap to easy), Poor (rest)
+- **Hard day stacking prevention:** Force easy after 2+ consecutive hard days
 
 ---
 
-## 4. Coaching Logic
+## 5. API Layer (tRPC v11 — 32+ endpoints)
 
-See [Coaching Logic](coaching-logic.md) for full rules.
+### 10 Routers
 
-### 4.1 User Configuration (Onboarding)
-
-- Primary sports: running, cycling, strength, swimming, team sports, etc.
-- Weekly availability: days and approximate time budget per day.
-- Goal type per sport:
-  - Maintain fitness
-  - Performance (e.g., 5K, 10K, marathon, FTP boost, strength gain)
-  - Body composition
-  - Return from layoff/injury (low load ramp)
-
-### 4.2 Weekly Template Generator
-
-Generate a default weekly pattern by sport and goal, then modulate by readiness each day.
-
-**Example (runner, 5 days/week, performance goal):**
-
-| Day | Session Type |
-|-----|-------------|
-| Mon | Easy aerobic |
-| Tue | High‑intensity VO2/threshold |
-| Wed | Easy / technique |
-| Thu | Tempo or cross‑training |
-| Fri | Rest |
-| Sat | Long endurance |
-| Sun | Optional strength |
-
-On a "Prime" readiness day → promote hardest planned session.
-On a "Low" readiness day → push hard session later, replace with easy/rest.
+| Router | Endpoints | Purpose |
+|--------|-----------|---------|
+| analytics | 7 | Trends, correlations, running form, notable changes, training status |
+| auth | 2 | Login, session management |
+| garmin | 4 | OAuth, webhook, backfill, sync status |
+| journal | 4 | CRUD for athlete journal entries |
+| post | 4 | Legacy content management |
+| profile | 4 | CRUD for user profile and preferences |
+| readiness | 4 | Today's score, history, components, anomalies |
+| sleep | 3 | Dashboard data, debt tracking, coach recommendations |
+| workout | 4 | Today's workout, weekly plan, detail, difficulty adjustment |
+| trends | 6 | Summary, multi-metric charts, period comparisons |
 
 ---
 
-## 5. Surfaces: UX Flows
+## 6. Frontend (Next.js 16 + Tailwind + Recharts)
 
-See [UX Flows](ux-flows.md) for wireframes and screen details.
+### 5-Tab Navigation
 
-### 5.1 Home / Today Screen
+| Tab | Page | Key Features |
+|-----|------|-------------|
+| Today | Home/Dashboard | Readiness circle, workout card, quick stats, adjustment buttons |
+| Trends | Advanced Trends | Multi-metric overlay charts, trend regression, correlations table, notable changes |
+| Training | Training Load | CTL/ATL/TSB line chart, ACWR gauge, load focus pie chart, recovery estimation, training status badge |
+| Sleep | Sleep Dashboard | Sleep stages bar chart, sleep score, debt tracker, sleep coach advice, timing analysis |
+| Settings | Settings | Profile edit, Garmin connection, preferences |
 
-- Readiness score + color + one‑sentence insight
-- Today's recommended session (time, intensity, focus)
-- "Too tired?" / "Feeling fresh?" adjustment buttons
+### Additional Pages
 
-### 5.2 Workout Detail Screen
-
-- Warm‑up, main set, cool‑down with target zones
-- "Why this today" explanation linked to readiness + goal
-- Export/sync to Garmin (future)
-
-### 5.3 History / Trends (Minimal)
-
-- 7‑ and 28‑day readiness vs strain charts
-- Sleep and HRV trends with contextual annotations
+- **Onboarding** — 3-step flow: About You → Sports & Goals → Weekly Schedule
+- **Workout Detail** — Structured blocks (warm-up/main/cooldown), target zones, "Why this today" explanation
 
 ---
 
-## 6. AI/Chat Layer (Optional for MVP)
+## 7. Testing
 
-Stripped‑down "coach chat" focused on existing metrics.
-
-| Intent | Response |
-|--------|----------|
-| "What should I do today?" | Same as Today panel + explanation |
-| "Why is my readiness low?" | Highlight factors: bad sleep, high stress, heavy session |
-| "Adjust for race in 10 days" | Mini‑taper: reduced volume, maintained intensity |
-
-**Guardrails:** strictly answer based on stored metrics and rules;
-no speculative medical advice.
+| Category | Count | Tool | Scope |
+|----------|-------|------|-------|
+| Engine unit tests | 131 | Vitest | All engine modules — readiness, strain, ACWR, CTL, baselines, anomalies, VO2max, race prediction, training status, recovery, sleep, trends, correlations, running form, coaching |
+| E2E tests | 20 | Playwright | All user flows — onboarding, daily, trends, training, sleep |
+| Integration tests | 10 | Vitest | tRPC router contracts |
+| Type checking | 16/16 | TypeScript | All turbo tasks passing |
+| **Total** | **161** | | |
 
 ---
 
-## 7. Architecture
+## 8. Infrastructure
 
-See [Architecture](architecture.md) for full details.
-
-- **Backend:** Garmin ingestion microservice + coaching engine service
-- **Storage:** Relational DB (Postgres) + time‑series tables
-- **Frontend:** React Native / Expo (mobile) + Next.js (web)
-- **Data privacy:** Explicit consent, transparent score computation
+- **Monorepo:** T3 Turbo (pnpm + Turborepo)
+- **Containers:** Docker (PostgreSQL 16 + Redis 7)
+- **CI/CD:** GitHub Actions (lint + typecheck + test + build)
+- **Auth:** Better-Auth with Discord OAuth
+- **ORM:** Drizzle ORM with drizzle-kit migrations
 
 ---
 
-## 8. What "Done" Looks Like
+## 9. What's Built vs. Remaining
 
-A single Garmin user can:
+### ✅ Complete (Phases 1–12)
 
-1. ✅ Connect their Garmin account → see 30 days of backfilled data within minutes
-2. ✅ See a daily readiness score and color with one‑line explanation
-3. ✅ Get one main workout recommendation per day that:
-   - Matches their chosen sport and goal
-   - Adjusts volume and intensity with readiness
-4. ✅ Ask basic questions ("why low?", "harder/easier?") → coherent, data‑backed answers
+- Full engine with 131 tests and evidence-based citations
+- 13-table PostgreSQL schema via Drizzle
+- 32+ tRPC endpoints across 10 routers
+- 7+ frontend pages with Recharts visualizations
+- Onboarding, settings, Garmin OAuth flow
+- GitHub Actions CI pipeline
+- Docker development environment
+- 16/16 turbo typecheck tasks passing
+
+### 🔲 Remaining (Phases 13–16)
+
+| Phase | Feature | Description |
+|-------|---------|-------------|
+| 13 | Activity Detail Page | Individual activity view with time-series charts, splits, HR zones |
+| 14 | Journal | Daily journal entries with mood tracking, tags, and correlation to metrics |
+| 15 | AI Coach Chat | LLM-powered chat with data-backed answers, guardrails, streaming |
+| 16 | VO2max & Predictions Page | VO2max history chart, race prediction calculator UI, training paces |
