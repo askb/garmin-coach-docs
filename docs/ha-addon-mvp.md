@@ -22,202 +22,215 @@
 
 ---
 
-## Option A: iframe Panel (Current Setup)
+## Deployed Architecture (v2.0)
 
-### Architecture
+### Addon Architecture
 ```
-┌──────────────────────────────┐     ┌─────────────────────────┐
-│  Home Assistant (HAOS)       │     │  ag15 (192.168.1.77)    │
-│  192.168.1.176               │     │                         │
-│                              │     │  Next.js :3000          │
-│  ┌────────────────────────┐  │     │  PostgreSQL :5432       │
-│  │ Sidebar: GarminCoach   │──┼────▶│  Redis :6379            │
-│  │ (iframe → :3000)       │  │     │  Ollama :11434          │
-│  └────────────────────────┘  │     │                         │
-│                              │     │  systemd user service   │
-│  panel_iframe in config.yaml │     │  auto-starts on boot    │
-└──────────────────────────────┘     └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Home Assistant Supervisor (HAOS)                           │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  GarminCoach Addon Container (aarch64)                │  │
+│  │                                                       │  │
+│  │  ┌─────────────────┐  ┌──────────────────────────┐   │  │
+│  │  │ Ingress Proxy   │  │ Next.js 16 Standalone    │   │  │
+│  │  │ :3000 (public)  │─▶│ :3001 (internal)         │   │  │
+│  │  │                 │  │                          │   │  │
+│  │  │ Rewrites ALL    │  │ T3 Turbo: tRPC v11      │   │  │
+│  │  │ /_next/ paths   │  │ + Drizzle ORM + RSC     │   │  │
+│  │  └─────────────────┘  └──────────────────────────┘   │  │
+│  │                                                       │  │
+│  │  ┌─────────────────┐  ┌──────────────────────────┐   │  │
+│  │  │ PostgreSQL 16   │  │ Garmin Auth Server       │   │  │
+│  │  │ :5432 (embedded)│  │ Flask :8099 (internal)   │   │  │
+│  │  └─────────────────┘  └──────────────────────────┘   │  │
+│  │                                                       │  │
+│  │  ┌─────────────────┐  ┌──────────────────────────┐   │  │
+│  │  │ Garmin Sync     │  │ s6-overlay service mgr   │   │  │
+│  │  │ (cron/Python)   │  │ (process supervision)    │   │  │
+│  │  └─────────────────┘  └──────────────────────────┘   │  │
+│  │                                                       │  │
+│  │  /data/garmin-tokens/ (persistent across restarts)    │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  Optional: Ollama addon (separate) for AI coaching          │
+│  Default: HA Conversation API for AI (OpenClaw/Claude)      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Setup Steps
-1. In HAOS, go to **Settings → Dashboards → Add Dashboard**
-2. Choose **"Webpage"** type
-3. Set:
-   - Title: `GarminCoach`
-   - Icon: `mdi:heart-pulse`
-   - URL: `http://192.168.1.77:3000`
-   - Require admin: No
-   - Show in sidebar: Yes
+### HA Ingress Proxy (Critical Component)
 
-**OR** add to `configuration.yaml`:
+The proxy (`ingress-proxy.js`) sits between HA ingress and Next.js, solving the
+path rewriting problem. HA serves the addon at `/api/hassio_ingress/<token>/`
+but Next.js emits absolute `/_next/` paths — the proxy rewrites them.
+
+**What it rewrites:**
+| Response Type | Rewriting |
+|---|---|
+| HTML (`text/html`) | `/_next/` paths + `href`/`src`/`action` attributes + `<meta>` tag injection |
+| JavaScript (ALL) | `/_next/` in imports, chunk loaders, turbopack runtime |
+| CSS | `url(/_next/...)` for fonts and assets |
+| RSC flight (`text/x-component`, `text/plain`) | Module references for client-side navigation |
+| JSON API | Any `/_next/` references |
+| Binary (fonts, images) | Passthrough — no rewriting |
+
+The universal rewrite is: `replaceAll("/_next/", ingressPath + "/_next/")`
+
+---
+
+## Garmin Connect Authentication
+
+### Known Issues (2025-2026)
+
+The `garminconnect` / `garth` Python libraries have a **known upstream bug** with
+MFA-enabled Garmin accounts. Garmin changed their SSO backend, breaking automated
+MFA login flows.
+
+**Symptoms:**
+- `401 Client Error: Unauthorized` on login
+- `OAuth1 token is required for OAuth2 refresh`
+- MFA code prompt never reached
+
+**Tracked in:**
+- [cyberjunky/python-garminconnect #312](https://github.com/cyberjunky/python-garminconnect/issues/312)
+- [cyberjunky/python-garminconnect #235](https://github.com/cyberjunky/python-garminconnect/issues/235)
+- [matin/garth #137](https://github.com/matin/garth/issues/137)
+
+### Recommended Workaround: Local Token Generation
+
+Since the addon runs headless and can't handle interactive MFA, generate tokens
+on your laptop where MFA works, then import them into the addon.
+
+**Step 1: Generate tokens locally**
+```bash
+cd ~/git/garmincoach-addon
+python3 scripts/generate-garmin-tokens.py
+```
+
+The script will:
+1. Prompt for your Garmin email and password
+2. Handle MFA interactively (check your phone for the code)
+3. Save OAuth1 + OAuth2 tokens to `/tmp/garmin-tokens/`
+4. Offer to deploy tokens to HAOS automatically
+
+**Step 2: Import tokens into the addon**
+
+Option A — Automatic (via the script's deploy step):
+The script copies tokens to HAOS and calls the addon's `/auth/import-tokens` API.
+
+Option B — Manual:
+```bash
+# Copy token files to HAOS
+cat /tmp/garmin-tokens/oauth1_token.json | \
+  ssh -p 22222 hassio@192.168.1.176 "cat > /tmp/oauth1_token.json"
+cat /tmp/garmin-tokens/oauth2_token.json | \
+  ssh -p 22222 hassio@192.168.1.176 "cat > /tmp/oauth2_token.json"
+
+# Import via addon API (from HAOS SSH)
+ssh -p 22222 hassio@192.168.1.176
+curl -X POST -H 'Content-Type: application/json' \
+  -d "$(python3 -c 'import json; o1=json.load(open("/tmp/oauth1_token.json")); o2=json.load(open("/tmp/oauth2_token.json")); print(json.dumps({"oauth1_token":o1,"oauth2_token":o2}))')" \
+  'http://ecfdb23d-garmincoach:3000/api/garmin/auth-import'
+```
+
+**Token Lifecycle:**
+- Tokens are valid for weeks/months until Garmin expires them
+- The auth server auto-refreshes OAuth2 using the saved OAuth1 token
+- Tokens persist in `/data/garmin-tokens/` across addon restarts
+- If tokens expire, re-run the generate script
+
+### Auth Server Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/garmin/auth` | Check connection status |
+| POST | `/api/garmin/auth` | Login (email + password) or MFA (code) |
+| PUT | `/api/garmin/auth` | Import pre-generated tokens |
+| DELETE | `/api/garmin/auth` | Disconnect / remove tokens |
+
+### In-App Login (When MFA is Not Required)
+
+If your Garmin account does **not** have MFA enabled, you can log in directly
+from the Settings page in the addon UI:
+
+1. Navigate to **Settings** in the GarminCoach sidebar
+2. Enter your Garmin email and password
+3. Click **Connect**
+
+---
+
+## Addon Configuration
+
+### config.yaml Options
 ```yaml
-panel_iframe:
-  garmincoach:
-    title: "GarminCoach"
-    url: "http://192.168.1.77:3000"
-    icon: "mdi:heart-pulse"
-    require_admin: false
+options:
+  garmin_email: ""          # Garmin Connect email (optional if using token import)
+  garmin_password: ""       # Garmin Connect password (optional if using token import)
+  ai_backend: "ha_conversation"  # ha_conversation | ollama | none
+  ollama_url: ""            # e.g., http://homeassistant.local:11434
+  sync_interval_minutes: 60 # How often to pull Garmin data
 ```
 
-### Lovelace Card Alternative
-Embed specific pages in any dashboard:
-```yaml
-type: iframe
-url: "http://192.168.1.77:3000/zones"
-aspect_ratio: "16:9"
+### Addon Repository Structure (Actual)
+```
+garmincoach-addon/
+├── garmincoach/
+│   ├── config.yaml              # Addon metadata + schema
+│   ├── Dockerfile               # Multi-stage: node:22-alpine → HA aarch64-base
+│   ├── build.yaml               # Arch-specific build config
+│   ├── CHANGELOG.md
+│   ├── DOCS.md
+│   └── rootfs/
+│       ├── app/
+│       │   ├── ingress-proxy.js         # HA ingress path rewriter
+│       │   └── scripts/
+│       │       ├── garmin-auth-server.py # Flask auth microservice
+│       │       └── garmin-sync.py       # Periodic Garmin data sync
+│       └── etc/
+│           └── s6-overlay/s6-rc.d/      # Service definitions
+│               ├── garmincoach/run      # Main service (PG + Next.js + proxy)
+│               ├── garmin-auth/run      # Auth server service
+│               └── postgresql/run       # PostgreSQL service
+├── repository.yaml              # HA addon repository metadata
+├── scripts/
+│   ├── build-local.sh           # Local Docker build helper
+│   └── generate-garmin-tokens.py # Token generation for MFA accounts
+└── tests/
+    └── unit/
+        └── test_ingress_proxy.js # 20 E2E proxy tests
 ```
 
 ---
 
-## Option C: Full HA Addon (Future)
+## Resource Usage (Measured on aarch64)
+| Component | RAM | CPU | Disk |
+|---|---|---|---|
+| Next.js 16 standalone | ~80MB | <1% idle | ~50MB |
+| PostgreSQL 16 | ~30MB | <1% idle | ~20MB data |
+| Garmin sync (cron) | ~30MB (peak) | burst | minimal |
+| Flask auth server | ~15MB | <1% | minimal |
+| Ingress proxy | ~10MB | <1% | minimal |
+| **Total** | **~165MB** | **<2% idle** | **~70MB** |
 
-### Addon Architecture
-```
-┌─────────────────────────────────────────────┐
-│  Home Assistant Supervisor                   │
-│                                              │
-│  ┌─────────────────────────────────────────┐ │
-│  │  GarminCoach Addon Container            │ │
-│  │                                         │ │
-│  │  ┌───────────┐  ┌──────────┐           │ │
-│  │  │ Next.js   │  │ Postgres │           │ │
-│  │  │ (standalone│  │ (embedded│           │ │
-│  │  │  server)  │  │  or ext) │           │ │
-│  │  └───────────┘  └──────────┘           │ │
-│  │  ┌───────────┐  ┌──────────┐           │ │
-│  │  │ Engine    │  │ Redis    │           │ │
-│  │  │ (compute) │  │ (cache)  │           │ │
-│  │  └───────────┘  └──────────┘           │ │
-│  │                                         │ │
-│  │  Ingress proxy (no port exposure)       │ │
-│  └─────────────────────────────────────────┘ │
-│                                              │
-│  Optional: Ollama addon (separate)           │
-└──────────────────────────────────────────────┘
-```
+---
 
-### Implementation Phases
+## Future Phases
 
-#### Phase 1: Standalone Addon (Basic)
-- [ ] Create addon repository structure (`config.yaml`, `Dockerfile`, `run.sh`)
-- [ ] Containerize: Node.js 22 + Next.js standalone build + embedded SQLite (replace Postgres for simplicity)
-- [ ] HA Ingress support (reverse proxy through Supervisor)
-- [ ] Config options: Garmin email/password (for garminconnect-python sync)
-- [ ] Addon store metadata: icon, logo, description, documentation
-
-**Key decisions:**
-- **Database**: SQLite for single-user addon (no Postgres dependency) — Drizzle supports both
-- **Data sync**: Embed garminconnect-python for direct Garmin API sync (no InfluxDB needed)
-- **Ollama**: Optional — detect if Ollama addon is installed, fallback to rules-based
-
-#### Phase 2: Multi-User + HA Integration
+### Phase 2: HA Integration
 - [ ] HA authentication passthrough (use HA user context)
 - [ ] Expose HA sensors: `sensor.garmincoach_readiness`, `sensor.garmincoach_training_status`
 - [ ] HA notifications: push alerts for anomalies, deload recommendations
 - [ ] Webhook for Garmin Connect IQ (direct watch → addon sync)
 
-#### Phase 3: Community Release
+### Phase 3: Community Release
 - [ ] HACS repository registration
+- [ ] Addon store icons (icon.png + logo.png, 256×256)
 - [ ] Documentation: installation guide, screenshots, FAQ
 - [ ] Multi-device support (Garmin, Wahoo, Polar via FIT file import)
 - [ ] Translations (i18n)
 - [ ] Community beta testing
 
-### Addon Repository Structure
-```
-garmincoach-addon/
-├── config.yaml              # Addon metadata
-├── Dockerfile               # Multi-stage build
-├── run.sh                   # Entrypoint with bashio
-├── DOCS.md                  # Shows in addon info panel
-├── CHANGELOG.md
-├── icon.png                 # 256x256 addon icon
-├── logo.png                 # 256x256 addon logo
-├── translations/
-│   └── en.yaml
-├── apparmor.txt             # Security profile
-└── build.yaml               # Multi-arch (amd64, aarch64)
-```
-
-### config.yaml (Addon Manifest)
-```yaml
-name: "GarminCoach"
-description: "AI-powered sport scientist — training analysis, coaching, and recovery optimization from your Garmin data"
-version: "1.0.0"
-slug: "garmincoach"
-url: "https://github.com/askb/garmincoach-addon"
-arch:
-  - amd64
-  - aarch64
-homeassistant_api: true
-ingress: true
-ingress_port: 3000
-panel_icon: "mdi:heart-pulse"
-panel_title: "GarminCoach"
-map:
-  - addon_config:rw
-  - share:rw
-ports:
-  3000/tcp: null  # null = ingress only, no host port
-options:
-  garmin_email: ""
-  garmin_password: ""
-  ollama_url: ""
-  language: "en"
-schema:
-  garmin_email: email
-  garmin_password: password
-  ollama_url: "url?"
-  language: "str?"
-startup: "application"
-init: false
-```
-
-### Dockerfile (Multi-Stage)
-```dockerfile
-# Stage 1: Build
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-RUN pnpm --filter @acme/nextjs build
-# Standalone output mode — single directory with everything
-
-# Stage 2: Runtime
-FROM node:22-alpine
-RUN apk add --no-cache python3 py3-pip sqlite
-WORKDIR /app
-COPY --from=builder /app/apps/nextjs/.next/standalone ./
-COPY --from=builder /app/apps/nextjs/.next/static ./.next/static
-COPY --from=builder /app/apps/nextjs/public ./public
-
-# Garmin sync (Python)
-RUN pip3 install garminconnect
-
-COPY run.sh /run.sh
-RUN chmod +x /run.sh
-CMD ["/run.sh"]
-```
-
-### Estimated Resource Usage (as HA Addon)
-| Component | RAM | CPU | Disk |
-|---|---|---|---|
-| Next.js standalone | ~80MB | <1% idle | ~50MB |
-| SQLite | ~5MB | <1% | ~20MB data |
-| Garmin sync (cron) | ~30MB (peak) | burst | minimal |
-| **Total** | **~115MB** | **<2% idle** | **~70MB** |
-
-Compared to other addons: lighter than Grafana (200MB+), similar to Node-RED (~100MB).
-
-### Migration Path (Current → Addon)
-1. Replace PostgreSQL with SQLite/better-sqlite3 (Drizzle adapter swap)
-2. Next.js `output: "standalone"` build (already supported)
-3. Embed garminconnect-python for direct sync (replace InfluxDB pipeline)
-4. Strip Redis (use in-memory cache for single-user)
-5. HA Ingress integration (auth header passthrough)
-
 ### Community Value Assessment
-- **Target audience**: ~500K+ Garmin users in HA community (based on cyberjunky integration downloads)
+- **Target audience**: ~500K+ Garmin users in HA community
 - **Unique value**: Only sport science + AI coaching addon for HA
-- **Comparable addons**: ESPHome (~1M installs), Node-RED (~500K), Grafana (~200K)
 - **Realistic reach**: 5K-20K installs in first year if quality is high
