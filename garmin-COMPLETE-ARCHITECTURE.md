@@ -24,7 +24,7 @@ You have **THREE separate** Garmin-related components:
 ### 2. Grafana HAOS Addon ✅
 **Addon ID**: `a0d7b954_grafana`
 **Access URLs**:
-- Direct: http://192.168.1.176:3000
+- Direct: http://<YOUR_HA_IP>:3000
 - Ingress: https://haos.askb.dev/a0d7b954_grafana
 
 **What it does**:
@@ -36,7 +36,7 @@ You have **THREE separate** Garmin-related components:
 **Type**: HAOS addon (installed separately from HACS integration)
 
 ### 3. InfluxDB HAOS Addon ✅
-**Location**: http://192.168.1.176:8086
+**Location**: http://<YOUR_HA_IP>:8086
 **Database**: `garmin`
 
 **What it does**:
@@ -70,7 +70,7 @@ Garmin Connect API
     ↓ (laptop script with tokens)
 Python sync.py
     ↓ (HTTP POST)
-InfluxDB on HAOS (192.168.1.176:8086)
+InfluxDB on HAOS (<YOUR_HA_IP>:8086)
     ↓ (InfluxQL queries)
 Grafana Dashboard (garmin-stats)
     ↓
@@ -87,7 +87,7 @@ Visualization
 - **Option C**: Something else?
 
 **To find out**, check the dashboard:
-1. Open: http://192.168.1.176:3000/d/feiibsx498gsgb/garmin-stats
+1. Open: http://<YOUR_HA_IP>:3000/d/feiibsx498gsgb/garmin-stats
 2. Click any panel → **Edit**
 3. Look at **Data source** dropdown at top
 4. What does it say?

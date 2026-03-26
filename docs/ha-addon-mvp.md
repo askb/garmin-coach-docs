@@ -122,12 +122,12 @@ Option B — Manual:
 ```bash
 # Copy token files to HAOS
 cat /tmp/garmin-tokens/oauth1_token.json | \
-  ssh -p 22222 hassio@192.168.1.176 "cat > /tmp/oauth1_token.json"
+  ssh -p 22222 hassio@<YOUR_HA_IP> "cat > /tmp/oauth1_token.json"
 cat /tmp/garmin-tokens/oauth2_token.json | \
-  ssh -p 22222 hassio@192.168.1.176 "cat > /tmp/oauth2_token.json"
+  ssh -p 22222 hassio@<YOUR_HA_IP> "cat > /tmp/oauth2_token.json"
 
 # Import via addon API (from HAOS SSH)
-ssh -p 22222 hassio@192.168.1.176
+ssh -p 22222 hassio@<YOUR_HA_IP>
 curl -X POST -H 'Content-Type: application/json' \
   -d "$(python3 -c 'import json; o1=json.load(open("/tmp/oauth1_token.json")); o2=json.load(open("/tmp/oauth2_token.json")); print(json.dumps({"oauth1_token":o1,"oauth2_token":o2}))')" \
   'http://ecfdb23d-garmincoach:3000/api/garmin/auth-import'
