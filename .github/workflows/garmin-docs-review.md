@@ -23,6 +23,7 @@ is opened or updated, review the changed files for quality and accuracy.
 
 This repository contains the documentation for the GarminCoach Home Assistant
 addon ecosystem, which includes:
+
 - Architecture documentation for the addon, app, and HA config
 - AI coaching pipeline design docs
 - Improvement tracking and MVP planning
@@ -34,6 +35,7 @@ addon ecosystem, which includes:
 2. **For each changed file**, check for:
 
 ### Markdown Files
+
 - Broken links (relative and absolute)
 - Incorrect code block language tags
 - Outdated version numbers or references
@@ -46,16 +48,25 @@ addon ecosystem, which includes:
 - **No URLs with embedded credentials**
 
 ### YAML/Config Files
+
 - Valid YAML syntax
 - Consistent formatting with existing files
 - Missing required fields
 
 ### Architecture/Design Docs
+
 - Consistency with actual implementation
 - Missing component descriptions
 - Outdated diagrams or flow descriptions
 
-3. **Post a single review comment** summarizing:
+### Spec Kit Compliance
+
+- Check if the PR branch name matches pattern `speckit/NNN-*` or `feat/NNN-*`
+- If so, verify `specs/NNN-*/` directory exists with at least `spec.md`
+- If the PR modifies files related to a spec, check that `tasks.md` is being updated
+- For any new features (not bug fixes), suggest creating a spec if none exists
+
+1. **Post a single review comment** summarizing:
    - ✅ What looks good
    - ⚠️ Suggestions for improvement
    - ❌ Issues that need fixing
