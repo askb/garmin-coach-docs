@@ -31,22 +31,26 @@ spanning 4 repos: addon (Python), app (Next.js), HA config, and this docs repo.
 Create a concise daily health report as a GitHub issue covering:
 
 ### 1. Repository Activity (last 24h)
+
 - Recent commits and what changed
 - Open pull requests needing review
 - Any CI/CD failures in recent workflow runs
 
 ### 2. Documentation Inventory
+
 - Count of markdown files in docs/ directory
 - Count of architecture/design docs
 - Any files modified in the last 7 days
 
 ### 3. Potential Issues
+
 - Check for TODO/FIXME/PLACEHOLDER markers in docs
 - Look for broken relative links between docs
 - Check for outdated date references
 - Note any docs that reference deprecated features
 
 ### 3b. Security & PII Scan
+
 - **Scan for hardcoded IP addresses** (e.g., 192.168.x.x) in documentation — should use `<YOUR_HA_IP>` placeholders
 - **Scan for personal email addresses** (excluding maintainer SPDX headers and example.com)
 - **Scan for URLs containing embedded credentials** (user:pass@host)
@@ -54,12 +58,27 @@ Create a concise daily health report as a GitHub issue covering:
 - Verify SSH commands don't contain real hostnames or ports
 
 ### 4. Recommendations
+
 - Suggest docs that may need updating based on recent changes
 - Flag any gaps in documentation coverage
 - Note cross-repo documentation inconsistencies
 
+### 5. Spec Kit Health
+
+- List all active specs in `specs/` directory (skip `.gitkeep`)
+- For each spec directory, check completeness:
+  - ✅ Has `spec.md` (requirements defined)
+  - ✅ Has `plan.md` (implementation planned)
+  - ✅ Has `tasks.md` (work breakdown exists)
+  - ⚠️ Missing any of the above
+- Check `tasks.md` files for unchecked items (`- [ ]`) — report count of pending vs done
+- Flag specs not modified in the last 14 days as potentially stale
+- If `specs/` is empty (only `.gitkeep`), note "No active feature specs — consider creating specs for planned work"
+
 ### Format
+
 Use clear headings, bullet points, and emoji status indicators:
+
 - ✅ Healthy
 - ⚠️ Needs attention
 - ❌ Action required
