@@ -46,6 +46,13 @@ Create a concise daily health report as a GitHub issue covering:
 - Check for outdated date references
 - Note any docs that reference deprecated features
 
+### 3b. Security & PII Scan
+- **Scan for hardcoded IP addresses** (e.g., 192.168.x.x) in documentation — should use `<YOUR_HA_IP>` placeholders
+- **Scan for personal email addresses** (excluding maintainer SPDX headers and example.com)
+- **Scan for URLs containing embedded credentials** (user:pass@host)
+- **Check for personal names, health data, or device-specific identifiers** that shouldn't be in public docs
+- Verify SSH commands don't contain real hostnames or ports
+
 ### 4. Recommendations
 - Suggest docs that may need updating based on recent changes
 - Flag any gaps in documentation coverage
