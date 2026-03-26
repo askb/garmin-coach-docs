@@ -1,6 +1,6 @@
 # Garmin Setup - Complete Architecture Explained
 
-**Date**: 2026-02-12  
+**Date**: 2026-02-12
 **Status**: ✅ All pieces identified!
 
 ---
@@ -10,19 +10,19 @@
 You have **THREE separate** Garmin-related components:
 
 ### 1. HACS Garmin Connect Integration ✅
-**Location**: `/config/custom_components/garmin_connect`  
-**What it does**: 
+**Location**: `/config/custom_components/garmin_connect`
+**What it does**:
 - Fetches data from Garmin Connect API
 - Creates Home Assistant sensors (steps, calories, heart rate, etc.)
 - Updates every 5 minutes
 - Data lives in **Home Assistant state database**
 
-**Source**: https://github.com/cyberjunky/home-assistant-garmin_connect  
-**Type**: Home Assistant integration (via HACS)  
+**Source**: https://github.com/cyberjunky/home-assistant-garmin_connect
+**Type**: Home Assistant integration (via HACS)
 **Does it include Grafana?**: ❌ NO
 
 ### 2. Grafana HAOS Addon ✅
-**Addon ID**: `a0d7b954_grafana`  
+**Addon ID**: `a0d7b954_grafana`
 **Access URLs**:
 - Direct: http://192.168.1.176:3000
 - Ingress: https://haos.askb.dev/a0d7b954_grafana
@@ -32,11 +32,11 @@ You have **THREE separate** Garmin-related components:
 - Creates dashboards and graphs
 - Your `garmin-stats` dashboard lives here
 
-**Source**: HAOS Community Add-ons  
+**Source**: HAOS Community Add-ons
 **Type**: HAOS addon (installed separately from HACS integration)
 
 ### 3. InfluxDB HAOS Addon ✅
-**Location**: http://192.168.1.176:8086  
+**Location**: http://192.168.1.176:8086
 **Database**: `garmin`
 
 **What it does**:
@@ -44,7 +44,7 @@ You have **THREE separate** Garmin-related components:
 - Stores 2,226 days of historical Garmin data (2020-2026)
 - Fed by our Python sync script from laptop
 
-**Source**: HAOS official addon  
+**Source**: HAOS official addon
 **Type**: HAOS addon (installed separately)
 
 ---
@@ -122,9 +122,9 @@ Visualization
 ## 🎯 Recommendations
 
 ### Current State
-✅ **HACS Garmin Connect**: Already installed and working  
-✅ **Grafana**: Installed and accessible  
-✅ **InfluxDB**: Installed with 6 years of data synced  
+✅ **HACS Garmin Connect**: Already installed and working
+✅ **Grafana**: Installed and accessible
+✅ **InfluxDB**: Installed with 6 years of data synced
 ✅ **Dashboard**: `garmin-stats` exists and working
 
 ### Next Steps
@@ -159,7 +159,7 @@ Visualization
 
 ---
 
-**Last Updated**: 2026-02-12  
+**Last Updated**: 2026-02-12
 **Status**: ✅ Complete architecture documented
 
 ---
