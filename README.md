@@ -7,7 +7,7 @@ evidence-based coaching decisions. Every algorithm cites peer-reviewed research.
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           FRONTEND                                  │
 │  Next.js 16 · Tailwind CSS · Recharts · 6-tab navigation           │
@@ -146,7 +146,7 @@ pnpm lint                     # ESLint
 
 ## Project Structure
 
-```
+```text
 garmin-coach/
 ├── apps/
 │   └── nextjs/               # Next.js 16 frontend

@@ -7,7 +7,7 @@ Contains architecture docs, API references, and user guides.
 
 ## Commit Format
 
-```
+```text
 type(scope): description
 
 Signed-off-by: Anil Belur <askb23@gmail.com>
