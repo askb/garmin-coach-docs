@@ -40,6 +40,10 @@ addon ecosystem, which includes:
 - Missing SPDX license headers
 - Inconsistent heading hierarchy
 - Spelling and grammar issues
+- **No hardcoded IP addresses** — use `<YOUR_HA_IP>` or similar placeholders
+- **No personal email addresses** (except maintainer SPDX headers)
+- **No SSH commands with real hostnames, IPs, or ports**
+- **No URLs with embedded credentials**
 
 ### YAML/Config Files
 - Valid YAML syntax
